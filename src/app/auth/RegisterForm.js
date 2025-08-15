@@ -3,32 +3,30 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import EmailInput from "@/components/ui/TextInputs";
-import PasswordInput from "@/components/ui/TextInputs";
 import TextInput from "@/components/ui/TextInputs";
+import PasswordInput from "@/components/ui/TextInputs";
+import EmailInput from "@/components/ui/TextInputs";
 import BigButton from "@/components/ui/Button";
 import { FcGoogle } from "react-icons/fc";
-import { useAuth, useCheckEmail } from "@/lib/hooks";
 
 // Validation regex patterns
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const nameRegex = /^[a-zA-Z\s]{2,50}$/;
+const nameRegex = /^[a-zA-Z\s'-]+$/;
 
 const RegisterForm = () => {
   const router = useRouter();
-  const { checkEmail, register } = useAuth();
-
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [formData, setFormData] = useState({
     email: "",
     name: "",
     password: "",
     confirmPassword: "",
   });
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [error, setError] = useState("");
 
-  // Email validation functions
+  // Validation functions
   const validateEmail = (email) => {
     if (!email.trim()) {
       return "Email is required";
@@ -43,8 +41,14 @@ const RegisterForm = () => {
     if (!name.trim()) {
       return "Name is required";
     }
+    if (name.trim().length < 2) {
+      return "Name must be at least 2 characters long";
+    }
+    if (name.trim().length > 50) {
+      return "Name must be less than 50 characters";
+    }
     if (!nameRegex.test(name.trim())) {
-      return "Name must be 2-50 characters and contain only letters and spaces";
+      return "Name can only contain letters, spaces, hyphens, and apostrophes";
     }
     return null;
   };
@@ -55,6 +59,9 @@ const RegisterForm = () => {
     }
     if (password.length < 6) {
       return "Password must be at least 6 characters long";
+    }
+    if (password.length > 128) {
+      return "Password must be less than 128 characters";
     }
     return null;
   };
@@ -67,6 +74,141 @@ const RegisterForm = () => {
       return "Passwords do not match";
     }
     return null;
+  };
+
+  const handleEmailSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setFieldErrors({});
+    setLoading(true);
+
+    const email = formData.email;
+    const emailError = validateEmail(email);
+
+    if (emailError) {
+      setFieldErrors({ email: emailError });
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Check if email already exists
+      const response = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to check email");
+      }
+
+      if (data.exists) {
+        setError("Email already registered. Please sign in instead.");
+      } else {
+        // Email is available, proceed to next step
+        setStep(2);
+      }
+    } catch (error) {
+      console.error("Email check error:", error);
+      setError(error.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinalSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setFieldErrors({});
+    setLoading(true);
+
+    const { email, name, password, confirmPassword } = formData;
+
+    // Validate all fields
+    const errors = {};
+
+    const emailError = validateEmail(email);
+    if (emailError) errors.email = emailError;
+
+    const nameError = validateName(name);
+    if (nameError) errors.name = nameError;
+
+    const passwordError = validatePassword(password);
+    if (passwordError) errors.password = passwordError;
+
+    const confirmPasswordError = validateConfirmPassword(
+      password,
+      confirmPassword
+    );
+    if (confirmPasswordError) errors.confirmPassword = confirmPasswordError;
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Registration failed");
+      }
+
+      // Auto sign in after successful registration
+      const result = await signIn("credentials", {
+        email: email.trim().toLowerCase(),
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(
+          "Registration successful but sign in failed. Please try signing in manually."
+        );
+      } else {
+        router.push("/dashboard");
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      setError(error.message || "Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setError("");
+      setLoading(true);
+
+      const result = await signIn("google", {
+        callbackUrl: "/dashboard",
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError("Google sign in failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Google sign in error:", error);
+      setError("Google sign in failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (field, value) => {
@@ -89,118 +231,18 @@ const RegisterForm = () => {
     }
   };
 
-  const handleEmailSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setFieldErrors({});
-
-    // Validate email
-    const emailError = validateEmail(formData.email);
-    if (emailError) {
-      setFieldErrors({ email: emailError });
-      return;
-    }
-
-    try {
-      // Check if email is available
-      await checkEmail.mutateAsync({
-        email: formData.email.trim().toLowerCase(),
-      });
-      setStep(2);
-    } catch (error) {
-      if (error.status === 409) {
-        setError(
-          "An account with this email already exists. Please sign in instead."
-        );
-      } else {
-        setError(error.message || "Something went wrong. Please try again.");
-      }
-    }
-  };
-
-  const handleFinalSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setFieldErrors({});
-
-    const { name, password, confirmPassword } = formData;
-
-    // Validate all fields
-    const errors = {};
-
-    const nameError = validateName(name);
-    if (nameError) errors.name = nameError;
-
-    const passwordError = validatePassword(password);
-    if (passwordError) errors.password = passwordError;
-
-    const confirmPasswordError = validateConfirmPassword(
-      password,
-      confirmPassword
-    );
-    if (confirmPasswordError) errors.confirmPassword = confirmPasswordError;
-
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
-
-    try {
-      // Register user
-      await register.mutateAsync({
-        name: name.trim(),
-        email: formData.email.trim().toLowerCase(),
-        password,
-      });
-
-      // Auto sign in after successful registration
-      const result = await signIn("credentials", {
-        email: formData.email.trim().toLowerCase(),
-        password,
-        redirect: false,
-      });
-
-      if (result?.ok) {
-        router.push("/dashboard");
-      } else {
-        setError(
-          "Registration successful but sign in failed. Please sign in manually."
-        );
-      }
-    } catch (error) {
-      setError(error.message || "Registration failed. Please try again.");
-    }
-  };
-
   const goBack = () => {
     setStep(1);
     setError("");
     setFieldErrors({});
   };
 
-  const handleGoogleSignIn = async () => {
-    try {
-      setError("");
-      const result = await signIn("google", {
-        callbackUrl: "/dashboard",
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("Google sign in failed. Please try again.");
-      }
-    } catch (error) {
-      console.error("Google sign in error:", error);
-      setError("Google sign in failed. Please try again.");
-    }
-  };
-
   return (
     <div className="py-[27px] px-[24px] bg-white rounded-lg border border-[#E2E8F0]">
       {step === 1 ? (
-        // Step 1: Email input
+        // Step 1: Email only
         <>
-          <h2 className="text-3xl font-semibold text-center mb-4">
+          <h2 className="text-3xl font-semibold text-[#020617] text-center mb-4">
             Start for free
           </h2>
 
@@ -225,7 +267,7 @@ const RegisterForm = () => {
 
             <BigButton
               type="submit"
-              disabled={checkEmail.isPending}
+              disabled={loading}
               loadingText="Checking email..."
               className="mt-4"
             >
@@ -240,7 +282,7 @@ const RegisterForm = () => {
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            disabled={checkEmail.isPending}
+            disabled={loading}
             className="w-full h-[47px] shadow-[0px_4px_12px_0px_#0000001A] flex justify-center items-center py-2 px-4 border border-[#EAECF0] rounded-md text-sm font-medium text-[#000000] bg-white hover:bg-gray-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <FcGoogle className="w-5 h-5 mr-2" />
@@ -248,7 +290,7 @@ const RegisterForm = () => {
           </button>
         </>
       ) : (
-        // Step 2: Name and password
+        // Step 2: Name and Password
         <>
           <h2 className="text-3xl font-semibold text-center text-[#020617] mb-4">
             One last step
@@ -269,7 +311,7 @@ const RegisterForm = () => {
 
             <PasswordInput
               label="Password"
-              placeholder="••••••"
+              placeholder="••••"
               type="password"
               name="password"
               value={formData.password}
@@ -280,8 +322,8 @@ const RegisterForm = () => {
             />
 
             <PasswordInput
-              label="Confirm Password"
-              placeholder="••••••"
+              label="Set Password"
+              placeholder="••••"
               type="password"
               name="confirmPassword"
               value={formData.confirmPassword}
@@ -300,17 +342,11 @@ const RegisterForm = () => {
             )}
 
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={goBack}
-                className="flex-1 py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Back
-              </button>
+            
 
               <BigButton
                 type="submit"
-                disabled={register.isPending}
+                disabled={loading}
                 loadingText="Creating account..."
                 className="flex-1"
               >

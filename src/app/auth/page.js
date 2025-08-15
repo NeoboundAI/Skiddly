@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import LoginForm from "./login/LoginForm";
-import RegisterForm from "./register/RegisterForm";
+import LoginForm from "./LoginForm";
+import RegisterForm from "./RegisterForm";
 
 const AuthPage = () => {
   const [activeTab, setActiveTab] = useState("signin");
@@ -35,26 +35,26 @@ const AuthPage = () => {
         <div className="w-[420px]">
           <div className="flex mb-6 p-1  bg-[#F2F4F7] rounded-full overflow-hidden relative">
             <div className="w-full h-full relative flex">
-            <button
-              className={`flex-1 py-3 shadow-xs  text-sm font-medium transition-all duration-200 relative z-10 ${
-                activeTab === "signin" ? "text-[#020617]" : "text-[#667085]"
-              }`}
-              onClick={() => setActiveTab("signin")}
-            >
-              Sign In
-            </button>
-            <button
-              className={`flex-1 py-3 text-sm font-medium transition-all duration-200 relative z-10 ${
-                activeTab === "signup" ? "text-gray-800" : "text-gray-500"
-              }`}
-              onClick={() => setActiveTab("signup")}
-            >
-              Sign up
-            </button>
-            {/* Animated slider */}
-            <div
-              className={`absolute top-0 h-full bg-white rounded-full shadow-sm transition-all duration-200 ease-in-out ${
-                activeTab === "signin" ? "left-0 w-1/2" : "left-1/2 w-1/2"
+              <button
+                className={`flex-1 py-3 shadow-xs  text-sm font-medium transition-all duration-200 relative z-10 ${
+                  activeTab === "signin" ? "text-[#020617]" : "text-[#667085]"
+                }`}
+                onClick={() => setActiveTab("signin")}
+              >
+                Sign In
+              </button>
+              <button
+                className={`flex-1 py-3 text-sm font-medium transition-all duration-200 relative z-10 ${
+                  activeTab === "signup" ? "text-gray-800" : "text-gray-500"
+                }`}
+                onClick={() => setActiveTab("signup")}
+              >
+                Sign up
+              </button>
+              {/* Animated slider */}
+              <div
+                className={`absolute top-0 h-full bg-white rounded-full shadow-sm transition-all duration-200 ease-in-out ${
+                  activeTab === "signin" ? "left-0 w-1/2" : "left-1/2 w-1/2"
                 }`}
               />
             </div>

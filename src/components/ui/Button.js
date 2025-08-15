@@ -35,7 +35,7 @@ const BigButton = ({
         w-full h-11 px-4 py-2.5
         bg-[#6938EF] border border-[#5925DC] text-white
         font-medium rounded-md
-        transition-all duration-200 ease-in-out
+        transition-all duration-200 ease-in-out text-sm
         hover:bg-[#5925DC] focus:outline-none focus:ring-2 focus:ring-[#6938EF] focus:ring-offset-2
         disabled:opacity-50 disabled:cursor-not-allowed
         shadow-[0px_4px_20px_0px_#00000026]

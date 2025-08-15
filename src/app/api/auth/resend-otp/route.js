@@ -14,18 +14,29 @@ export async function POST(req) {
       );
     }
 
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return NextResponse.json(
+        { message: "Invalid email format" },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
 
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
+    // Generate new OTP
     const otp = generateOTP();
     const otpExpiry = new Date();
-    otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); 
+    otpExpiry.setMinutes(otpExpiry.getMinutes() + 10); // OTP valid for 10 minutes
 
+    // Update user with new OTP
     user.otp = {
       code: otp,
       expiresAt: otpExpiry,
@@ -33,19 +44,19 @@ export async function POST(req) {
 
     await user.save();
 
-    console.log(otp);
-    // await sendEmail({
-    //   to: email,
-    //   subject: "Password Reset OTP",
-    //   text: `Your OTP for password reset is: ${otp}. This code will expire in 10 minutes.`,
-    // });
+    // Send new OTP email
+    await sendEmail({
+      to: email,
+      subject: "Password Reset OTP (Resent)",
+      text: `Your new OTP for password reset is: ${otp}. This code will expire in 10 minutes.`,
+    });
 
     return NextResponse.json(
-      { message: "OTP sent successfully" },
+      { message: "OTP resent successfully" },
       { status: 200 }
     );
   } catch (error) {
-    console.error("Password reset error:", error);
+    console.error("Resend OTP error:", error);
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
