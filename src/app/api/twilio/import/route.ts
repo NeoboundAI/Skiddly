@@ -5,18 +5,17 @@ import {
   badRequestResponse,
   serverErrorResponse,
   successResponse,
-} from "../../handlers/apiResponses";
+} from "@/app/api/handlers/apiResponses";
+
 interface TwilioRequestBody {
   sid: string;
   token: string;
   phoneNumber: string;
-  phoneNumberSid?: string;
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const { sid, token, phoneNumber, phoneNumberSid }: TwilioRequestBody =
-      await req.json();
+    const { sid, token, phoneNumber }: TwilioRequestBody = await req.json();
 
     if (!sid || !token || !phoneNumber) {
       return badRequestResponse(
@@ -28,7 +27,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       sid,
       token,
       phoneNumber,
-      phoneNumberSid,
     });
 
     if (!isSuccess) {

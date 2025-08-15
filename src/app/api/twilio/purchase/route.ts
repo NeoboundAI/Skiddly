@@ -10,11 +10,14 @@ import {
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const twilioClient = twilio(
-      process.env.TWILIO_SID,
-      process.env.TWILIO_TOKEN
-    );
+    const sid = process.env.TWILIO_SID;
+    const token = process.env.TWILIO_TOKEN;
+    if (!sid || !token) {
+      console.error("Missing TWILIO_SID/TWILIO_TOKEN");
+      return serverErrorResponse();
+    }
 
+    const twilioClient = twilio(sid, token);
     const numbers = await twilioClient.availablePhoneNumbers("US").local.list();
     if (numbers.length === 0) {
       console.error("No available phone numbers found in Twilio");
@@ -38,18 +41,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
      * Step 1: TODO: Check Amount paid for the phone number
      */
 
+    const sid = process.env.TWILIO_SID;
+    const token = process.env.TWILIO_TOKEN;
+    if (!sid || !token) {
+      console.error("Missing TWILIO_SID/TWILIO_TOKEN");
+      return serverErrorResponse();
+    }
+
     /*
      * Step 2: Purchase phone number from Twilio
      */
-    const twilioClient = twilio(
-      process.env.TWILIO_SID,
-      process.env.TWILIO_TOKEN
-    );
-
+    const twilioClient = twilio(sid, token);
     const purchasedNumber = await twilioClient.incomingPhoneNumbers.create({
       phoneNumber,
     });
-
     if (!purchasedNumber.sid) {
       console.error("Failed to purchase phone number from Twilio");
       return serverErrorResponse();
@@ -59,10 +64,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
      * Step 3: import twlio number to VAPI
      */
     const isSuccess = await importTwilioNumberToVapi({
-      sid: process.env.TWILIO_SID as string,
-      token: process.env.TWILIO_TOKEN as string,
+      sid,
+      token,
       phoneNumber: purchasedNumber.phoneNumber,
-      phoneNumberSid: purchasedNumber.sid,
     });
 
     if (!isSuccess) {

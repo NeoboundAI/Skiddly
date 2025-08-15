@@ -1,12 +1,10 @@
 import twilio from "twilio";
 import { VapiClient } from "@vapi-ai/server-sdk";
-import { IncomingPhoneNumberInstance } from "twilio/lib/rest/api/v2010/account/incomingPhoneNumber";
 
 interface TwilioAccountDetails {
   sid: string;
   token: string;
   phoneNumber: string;
-  phoneNumberSid?: string;
 }
 /**
  * Method to import Twilio phone numbers to VAPI.
@@ -15,38 +13,22 @@ export const importTwilioNumberToVapi = async ({
   sid,
   token,
   phoneNumber,
-  phoneNumberSid,
 }: TwilioAccountDetails): Promise<boolean> => {
   // Initialize Twilio client
   const client = twilio(sid, token);
 
+  console.log(`Importing Twilio number: ${phoneNumber}`);
+
   // Step 1: Validate Twilio credentials & phone number
-  let phoneDetails: IncomingPhoneNumberInstance;
-
   try {
-    if (phoneNumberSid) {
-      // Validate specific phone SID
-      phoneDetails = await client.incomingPhoneNumbers(phoneNumberSid).fetch();
+    const phoneDetails = await client.incomingPhoneNumbers.list({
+      phoneNumber,
+      limit: 1,
+    });
 
-      if (phoneDetails.phoneNumber !== phoneNumber) {
-        console.error(
-          `Phone number mismatch: Expected ${phoneNumber}, got ${phoneDetails.phoneNumber}`
-        );
-        return false;
-      }
-    } else {
-      // Get all incoming numbers
-      const numbers = await client.incomingPhoneNumbers.list();
-      const matched = numbers.find((num) => num.phoneNumber === phoneNumber);
-
-      if (!matched) {
-        console.error(
-          `Phone number ${phoneNumber} not found in Twilio account`
-        );
-        return false;
-      }
-
-      phoneDetails = matched;
+    if (!phoneDetails || phoneDetails.length === 0) {
+      console.error(`Phone number ${phoneNumber} not found in Twilio account`);
+      return false;
     }
   } catch (error) {
     console.error("Twilio Error:", error);
@@ -54,7 +36,7 @@ export const importTwilioNumberToVapi = async ({
   }
 
   // Step 2: Save to database
-  // await saveTwilioNumber({ sid, token, phoneNumber, phoneNumberSid: phoneDetails.sid });
+  // await saveTwilioNumber({ sid, token, phoneNumber });
 
   // Step 3: Attach to VAPI
   try {
