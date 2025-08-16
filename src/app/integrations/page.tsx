@@ -3,6 +3,7 @@
 import type React from "react";
 
 import { useState } from "react";
+import TwilioImportForm from "./twilio/ImportForm";
 
 type IntegrationStatus = "connected" | "disconnected" | "coming-soon";
 
@@ -218,14 +219,20 @@ export default function IntegrationsPage() {
     },
   ]);
 
+  const [showTwilioForm, setShowTwilioForm] = useState(false);
+
   const handleConnect = (id: string) => {
-    setIntegrations((prev) =>
-      prev.map((integration) =>
-        integration.id === id
-          ? { ...integration, status: "connected" as IntegrationStatus }
-          : integration
-      )
-    );
+    if (id === "twilio") {
+      setShowTwilioForm(true);
+    } else {
+      setIntegrations((prev) =>
+        prev.map((integration) =>
+          integration.id === id
+            ? { ...integration, status: "connected" as IntegrationStatus }
+            : integration
+        )
+      );
+    }
   };
 
   const handleDisconnect = (id: string) => {
@@ -233,6 +240,24 @@ export default function IntegrationsPage() {
       prev.map((integration) =>
         integration.id === id
           ? { ...integration, status: "disconnected" as IntegrationStatus }
+          : integration
+      )
+    );
+  };
+
+  const handleTwilioConnect = async (credentials: {
+    accountSid: string;
+    authToken: string;
+    phoneNumber: string;
+  }) => {
+    // Here you would typically make an API call to save the credentials
+    console.log("Connecting Twilio with credentials:", credentials);
+
+    // For now, just update the status
+    setIntegrations((prev) =>
+      prev.map((integration) =>
+        integration.id === "twilio"
+          ? { ...integration, status: "connected" as IntegrationStatus }
           : integration
       )
     );
@@ -254,6 +279,13 @@ export default function IntegrationsPage() {
           ))}
         </div>
       </div>
+
+      {/* Twilio Import Form Modal */}
+      <TwilioImportForm
+        isOpen={showTwilioForm}
+        onClose={() => setShowTwilioForm(false)}
+        onConnect={handleTwilioConnect}
+      />
     </div>
   );
 }
