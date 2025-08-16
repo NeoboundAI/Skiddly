@@ -153,7 +153,9 @@ const PurchaseList: React.FC<PurchaseListProps> = ({
             <div className="text-sm">
               <span className="font-medium text-blue-900">Pricing: </span>
               <span className="text-blue-800">
-                $1.00 one-time purchase + monthly carrier fees
+                You'll be charged $1.15 immediately. Afterwards, you'll be
+                charged $1.15/month in addition to the usage you incur on the
+                phone number.
               </span>
             </div>
           </div>
