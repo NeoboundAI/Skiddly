@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -40,6 +40,17 @@ const AuthWrapper = ({ children }) => {
             const sessionResponse = await fetch("/api/auth/session");
             if (sessionResponse.ok) {
               const sessionData = await sessionResponse.json();
+
+              // Check if session response is empty object and log out user
+              if (sessionData && Object.keys(sessionData).length === 0) {
+                console.log(
+                  "AuthWrapper: Empty session response, logging out user"
+                );
+                await signOut({ redirect: false });
+                router.push("/auth");
+                return;
+              }
+
               if (sessionData.user?.onboardingCompleted) {
                 router.push("/dashboard");
               } else {
@@ -64,6 +75,15 @@ const AuthWrapper = ({ children }) => {
           if (sessionResponse.ok) {
             const sessionData = await sessionResponse.json();
             console.log("AuthWrapper: Session data:", sessionData);
+
+            if (sessionData && Object.keys(sessionData).length === 0) {
+              console.log(
+                "AuthWrapper: Empty session response, logging out user"
+              );
+              await signOut({ redirect: false });
+              router.push("/auth");
+              return;
+            }
 
             if (sessionData.user?.onboardingCompleted) {
               // User has completed onboarding, redirect to dashboard
