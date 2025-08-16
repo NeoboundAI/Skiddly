@@ -78,6 +78,7 @@ export async function POST(req) {
       password: hashedPassword,
       emailVerified: true, // No email verification required
       provider: "credentials",
+      onboardingCompleted: false, // New users need onboarding
       createdAt: new Date(),
       lastLogin: new Date(),
     });

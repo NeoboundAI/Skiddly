@@ -37,7 +37,7 @@ export const useAuth = () => {
 
   // Verify OTP
   const verifyOTP = useMutation({
-    mutationFn: ({ email, otp }) => authAPI.verifyOTP(email, otp),
+    mutationFn: authAPI.verifyOTP,
     onError: (error) => {
       console.error("OTP verification error:", error);
     },
@@ -53,8 +53,7 @@ export const useAuth = () => {
 
   // Reset password
   const resetPassword = useMutation({
-    mutationFn: ({ email, otp, newPassword }) =>
-      authAPI.resetPassword(email, otp, newPassword),
+    mutationFn: authAPI.resetPassword,
     onError: (error) => {
       console.error("Password reset error:", error);
     },
@@ -74,7 +73,7 @@ export const useAuth = () => {
 export const useCheckEmail = (email, enabled = false) => {
   return useQuery({
     queryKey: queryKeys.auth.checkEmail(email),
-    queryFn: () => authAPI.checkEmail(email),
+    queryFn: () => authAPI.checkEmail({ email }),
     enabled: enabled && !!email,
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutes

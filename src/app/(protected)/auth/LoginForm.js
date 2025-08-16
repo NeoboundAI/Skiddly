@@ -101,7 +101,7 @@ const LoginForm = () => {
             );
         }
       } else if (result?.ok) {
-        // Successful sign in
+        // Successful sign in - AuthWrapper will handle routing
         router.push("/dashboard");
       } else {
         setError("Something went wrong. Please try again.");
@@ -120,12 +120,14 @@ const LoginForm = () => {
       setLoading(true);
 
       const result = await signIn("google", {
-        callbackUrl: "/dashboard",
         redirect: false,
       });
 
       if (result?.error) {
         setError("Google sign in failed. Please try again.");
+      } else if (result?.ok) {
+        // Google sign in successful - AuthWrapper will handle routing
+        router.push("/dashboard");
       }
     } catch (error) {
       console.error("Google sign in error:", error);

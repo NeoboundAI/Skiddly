@@ -25,7 +25,7 @@ const ForgotPasswordForm = () => {
   const [success, setSuccess] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
 
-  // Countdown timer for resend OTP
+  
   useEffect(() => {
     let timer;
     if (resendCountdown > 0) {
@@ -345,10 +345,10 @@ const ForgotPasswordForm = () => {
       )}
 
       {/* Back link */}
-      <div className="mt-6 text-center">
+      <div className="mt-6 text-left">
         <Link
           href="/auth"
-          className="text-sm text-purple-600 hover:text-purple-700 underline"
+          className="text-sm text-[#020617] hover:text-[#020617] underline"
         >
           Back to login
         </Link>

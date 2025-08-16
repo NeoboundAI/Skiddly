@@ -180,6 +180,7 @@ const RegisterForm = () => {
           "Registration successful but sign in failed. Please try signing in manually."
         );
       } else {
+        // Registration and sign in successful - AuthWrapper will handle routing
         router.push("/dashboard");
       }
     } catch (error) {
@@ -196,12 +197,14 @@ const RegisterForm = () => {
       setLoading(true);
 
       const result = await signIn("google", {
-        callbackUrl: "/dashboard",
         redirect: false,
       });
 
       if (result?.error) {
         setError("Google sign in failed. Please try again.");
+      } else if (result?.ok) {
+        // Google sign in successful - AuthWrapper will handle routing
+        router.push("/dashboard");
       }
     } catch (error) {
       console.error("Google sign in error:", error);
@@ -342,8 +345,6 @@ const RegisterForm = () => {
             )}
 
             <div className="flex gap-3">
-            
-
               <BigButton
                 type="submit"
                 disabled={loading}

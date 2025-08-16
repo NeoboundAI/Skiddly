@@ -1,10 +1,12 @@
-import NextAuth from "next-auth";
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import connectDB from "@/lib/mongodb";
+import User from "@/models/User";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import connectDB from "@/lib/mongodb";
-import User from "@/models/User";
 
+// Define authOptions locally since it's not exported from the NextAuth route
 const authOptions = {
   providers: [
     GoogleProvider({
@@ -178,6 +180,52 @@ const authOptions = {
   debug: process.env.NODE_ENV === "development",
 };
 
-const handler = NextAuth(authOptions);
+export async function POST(req) {
+  try {
+    const session = await getServerSession(authOptions);
 
-export { handler as GET, handler as POST };
+    if (!session) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    await connectDB();
+
+    // Update user's onboarding status
+    const updatedUser = await User.findByIdAndUpdate(
+      session.user.id,
+      {
+        onboardingCompleted: true,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      {
+        message: "Onboarding completed successfully",
+        user: {
+          id: updatedUser._id.toString(),
+          email: updatedUser.email,
+          name: updatedUser.name,
+          image: updatedUser.image,
+          emailVerified: updatedUser.emailVerified,
+          provider: updatedUser.provider,
+          onboardingCompleted: updatedUser.onboardingCompleted,
+          createdAt: updatedUser.createdAt,
+          updatedAt: updatedUser.updatedAt,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Complete onboarding error:", error);
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

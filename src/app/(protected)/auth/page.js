@@ -9,7 +9,7 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen p-4 flex bg-gradient-to-b from-purple-200 via-purple-50 to-purple-100">
-      {/* Left side with logo */}
+  
       <div className="w-[35%] flex flex-col items-center justify-center">
         <div className="flex flex-col items-center">
           <div className="mb-4">
@@ -23,7 +23,7 @@ const AuthPage = () => {
           </div>
         </div>
       </div>
-      {/* Right side with auth form */}
+
       <div
         style={{
           backgroundImage: "url('/dotpattern.svg')",
