@@ -4,6 +4,7 @@ import type React from "react";
 
 import { useState } from "react";
 import TwilioImportForm from "./twilio/ImportForm";
+import DashboardLayout from "@/components/DashboardLayout";
 
 type IntegrationStatus = "connected" | "disconnected" | "coming-soon";
 
@@ -264,28 +265,32 @@ export default function IntegrationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Integrations</h1>
+    <DashboardLayout>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">
+            Integrations
+          </h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {integrations.map((integration) => (
-            <IntegrationCard
-              key={integration.id}
-              integration={integration}
-              onConnect={handleConnect}
-              onDisconnect={handleDisconnect}
-            />
-          ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {integrations.map((integration) => (
+              <IntegrationCard
+                key={integration.id}
+                integration={integration}
+                onConnect={handleConnect}
+                onDisconnect={handleDisconnect}
+              />
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Twilio Import Form Modal */}
-      <TwilioImportForm
-        isOpen={showTwilioForm}
-        onClose={() => setShowTwilioForm(false)}
-        onConnect={handleTwilioConnect}
-      />
-    </div>
+        {/* Twilio Import Form Modal */}
+        <TwilioImportForm
+          isOpen={showTwilioForm}
+          onClose={() => setShowTwilioForm(false)}
+          onConnect={handleTwilioConnect}
+        />
+      </div>
+    </DashboardLayout>
   );
 }
