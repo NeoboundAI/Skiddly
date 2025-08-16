@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 
-const authOptions = {
+export const authOptions = {
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_ID,
@@ -94,10 +94,11 @@ const authOptions = {
         token.onboardingCompleted = user.onboardingCompleted;
         token.createdAt = user.createdAt;
         token.updatedAt = user.updatedAt;
+        token.shopify = user.shopify;
       }
 
       // For existing sessions, fetch user data from database
-      if (token.email && !token.onboardingCompleted) {
+      if (token.email) {
         try {
           await connectDB();
           const userData = await User.findOne({ email: token.email });
@@ -108,6 +109,7 @@ const authOptions = {
             token.onboardingCompleted = userData.onboardingCompleted;
             token.createdAt = userData.createdAt;
             token.updatedAt = userData.updatedAt;
+            token.shopify = userData.shopify;
           }
         } catch (error) {
           console.error("Error fetching user data in JWT callback:", error);
@@ -124,6 +126,7 @@ const authOptions = {
         session.user.onboardingCompleted = token.onboardingCompleted;
         session.user.createdAt = token.createdAt;
         session.user.updatedAt = token.updatedAt;
+        session.user.shopify = token.shopify;
       }
       return session;
     },
@@ -173,9 +176,10 @@ const authOptions = {
   session: {
     strategy: "jwt",
     maxAge: 24 * 60 * 60, // 24 hours
+    updateAge: 60 * 60, // Update session every hour
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === "development",
+  debug: false, // Disable debug to reduce console noise
 };
 
 const handler = NextAuth(authOptions);

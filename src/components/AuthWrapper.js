@@ -26,95 +26,38 @@ const AuthWrapper = ({ children }) => {
           );
           router.push("/auth");
         }
+        setIsChecking(false);
         return;
       }
 
-      // If authenticated, redirect away from auth page and check onboarding status
+      // If authenticated, handle routing based on session data
       if (status === "authenticated" && session) {
+        console.log("AuthWrapper: User authenticated, checking routing");
+
         // If user is on auth page, redirect them away
         if (window.location.pathname === "/auth") {
           console.log(
             "AuthWrapper: Authenticated user on auth page, redirecting"
           );
-          try {
-            const sessionResponse = await fetch("/api/auth/session");
-            if (sessionResponse.ok) {
-              const sessionData = await sessionResponse.json();
-
-              // Check if session response is empty object and log out user
-              if (sessionData && Object.keys(sessionData).length === 0) {
-                console.log(
-                  "AuthWrapper: Empty session response, logging out user"
-                );
-                await signOut({ redirect: false });
-                router.push("/auth");
-                return;
-              }
-
-              if (sessionData.user?.onboardingCompleted) {
-                router.push("/dashboard");
-              } else {
-                router.push("/onboarding");
-              }
-            } else {
-              router.push("/onboarding");
-            }
-          } catch (error) {
-            console.error("AuthWrapper: Error checking session:", error);
+          if (session.user?.onboardingCompleted) {
+            router.push("/dashboard");
+          } else {
             router.push("/onboarding");
           }
+          setIsChecking(false);
           return;
         }
 
-        try {
-          console.log(
-            "AuthWrapper: User authenticated, checking onboarding status"
-          );
-          // Fetch fresh session data to ensure we have the latest onboarding status
-          const sessionResponse = await fetch("/api/auth/session");
-          if (sessionResponse.ok) {
-            const sessionData = await sessionResponse.json();
-            console.log("AuthWrapper: Session data:", sessionData);
-
-            if (sessionData && Object.keys(sessionData).length === 0) {
-              console.log(
-                "AuthWrapper: Empty session response, logging out user"
-              );
-              await signOut({ redirect: false });
-              router.push("/auth");
-              return;
-            }
-
-            if (sessionData.user?.onboardingCompleted) {
-              // User has completed onboarding, redirect to dashboard
-              if (window.location.pathname !== "/dashboard") {
-                console.log(
-                  "AuthWrapper: Onboarding completed, redirecting to /dashboard"
-                );
-                router.push("/dashboard");
-              }
-            } else {
-              // User hasn't completed onboarding, redirect to onboarding
-              if (window.location.pathname !== "/onboarding") {
-                console.log(
-                  "AuthWrapper: Onboarding not completed, redirecting to /onboarding"
-                );
-                router.push("/onboarding");
-              }
-            }
-          } else {
-            // Fallback: if session fetch fails, redirect to onboarding
-            console.log(
-              "AuthWrapper: Session fetch failed, redirecting to /onboarding"
-            );
-            if (window.location.pathname !== "/onboarding") {
-              router.push("/onboarding");
-            }
-          }
-        } catch (error) {
-          console.error("AuthWrapper: Error checking session:", error);
-          // Fallback: if error occurs, redirect to onboarding
+        // Check onboarding status for other pages
+        if (session.user?.onboardingCompleted) {
+          // User has completed onboarding, allow access to all protected pages
+          // No need to redirect - let them access any page they want
+        } else {
+          // User hasn't completed onboarding, redirect to onboarding
           if (window.location.pathname !== "/onboarding") {
+            console.log(
+              "AuthWrapper: Onboarding not completed, redirecting to /onboarding"
+            );
             router.push("/onboarding");
           }
         }
@@ -143,7 +86,14 @@ const AuthWrapper = ({ children }) => {
     if (window.location.pathname === "/auth") {
       return children;
     }
-    return null;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-200 via-purple-50 to-purple-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirecting to login...</p>
+        </div>
+      </div>
+    );
   }
 
   // If authenticated, render children

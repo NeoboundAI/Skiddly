@@ -2,8 +2,10 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import TwilioImportForm from "./twilio/ImportForm";
+import ShopifyConnectModal from "@/components/ShopifyConnectModal";
 import DashboardLayout from "@/components/DashboardLayout";
 
 type IntegrationStatus = "connected" | "disconnected" | "coming-soon";
@@ -193,6 +195,7 @@ const IntegrationCard = ({
 };
 
 export default function IntegrationsPage() {
+  const { data: session } = useSession();
   const [integrations, setIntegrations] = useState<Integration[]>([
     {
       id: "twilio",
@@ -221,10 +224,38 @@ export default function IntegrationsPage() {
   ]);
 
   const [showTwilioForm, setShowTwilioForm] = useState(false);
+  const [showShopifyModal, setShowShopifyModal] = useState(false);
+
+  // Check for URL parameters for success/error messages
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get("success");
+    const error = urlParams.get("error");
+
+    if (success === "shopify_connected") {
+      setIntegrations((prev) =>
+        prev.map((integration) =>
+          integration.id === "shopify"
+            ? { ...integration, status: "connected" as IntegrationStatus }
+            : integration
+        )
+      );
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (error) {
+      console.error("Integration error:", error);
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const handleConnect = (id: string) => {
     if (id === "twilio") {
       setShowTwilioForm(true);
+    } else if (id === "shopify") {
+      setShowShopifyModal(true);
     } else {
       setIntegrations((prev) =>
         prev.map((integration) =>
@@ -289,6 +320,22 @@ export default function IntegrationsPage() {
           isOpen={showTwilioForm}
           onClose={() => setShowTwilioForm(false)}
           onConnect={handleTwilioConnect}
+        />
+
+        {/* Shopify Connect Modal */}
+        <ShopifyConnectModal
+          isOpen={showShopifyModal}
+          onClose={() => setShowShopifyModal(false)}
+          onSuccess={() => {
+            setShowShopifyModal(false);
+            setIntegrations((prev) =>
+              prev.map((integration) =>
+                integration.id === "shopify"
+                  ? { ...integration, status: "connected" as IntegrationStatus }
+                  : integration
+              )
+            );
+          }}
         />
       </div>
     </DashboardLayout>

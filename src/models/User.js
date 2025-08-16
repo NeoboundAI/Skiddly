@@ -39,6 +39,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "credentials",
     },
+    shopify: {
+      shop: String,
+      accessToken: String,
+      scope: String,
+      state: String,
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      connectedAt: Date,
+    },
   },
   {
     timestamps: true,

@@ -1,19 +1,39 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import ShopifyConnectModal from "@/components/ShopifyConnectModal";
+import TwilioImportForm from "@/app/(protected)/integration/twilio/ImportForm";
+import Toast from "@/components/Toast";
 import { FiShoppingBag, FiPhone, FiUser, FiBox } from "react-icons/fi";
+
+// Card icon backgrounds
+const ICON_BG = {
+  green: "bg-green-100 text-green-600",
+  red: "bg-red-100 text-red-600",
+  purple: "bg-purple-100 text-purple-600",
+};
 
 const DashboardPage = () => {
   const { data: session } = useSession();
-
-  const onboardingSteps = [
+  const router = useRouter();
+  const [showShopifyModal, setShowShopifyModal] = useState(false);
+  const [showTwilioModal, setShowTwilioModal] = useState(false);
+  const [toast, setToast] = useState({
+    message: "",
+    type: "info",
+    isVisible: false,
+  });
+  const [onboardingSteps, setOnboardingSteps] = useState([
     {
       id: 1,
       title: "Connect Shopify",
       icon: FiShoppingBag,
       color: "green",
       description: "Link your store to start syncing data",
+      completed: false,
     },
     {
       id: 2,
@@ -21,6 +41,7 @@ const DashboardPage = () => {
       icon: FiPhone,
       color: "red",
       description: "Set up your phone system for calls",
+      completed: false,
     },
     {
       id: 3,
@@ -28,21 +49,167 @@ const DashboardPage = () => {
       icon: FiUser,
       color: "purple",
       description: "Select your AI assistant personality",
+      completed: false,
     },
-  ];
+  ]);
 
-  const getColorClasses = (color) => {
-    switch (color) {
-      case "green":
-        return "bg-green-50 border-green-200 text-green-800";
-      case "red":
-        return "bg-red-50 border-red-200 text-red-800";
-      case "purple":
-        return "bg-purple-50 border-purple-200 text-purple-800";
-      default:
-        return "bg-gray-50 border-gray-200 text-gray-800";
+  // Update onboarding steps based on session data
+  useEffect(() => {
+    if (session?.user) {
+      setOnboardingSteps((prev) =>
+        prev.map((step) => {
+          if (step.id === 1) {
+            return {
+              ...step,
+              completed: session.user.shopify?.isActive || false,
+            };
+          }
+          if (step.id === 2) {
+            return {
+              ...step,
+              completed: session.user.twilio?.isActive || false,
+            };
+          }
+          return step;
+        })
+      );
+    }
+  }, [session]);
+
+  // Check for URL parameters for success/error messages from Shopify OAuth
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get("success");
+    const error = urlParams.get("error");
+
+    if (success === "shopify_connected") {
+      setOnboardingSteps((prev) =>
+        prev.map((step) => {
+          if (step.id === 1) {
+            return { ...step, completed: true };
+          }
+          return step;
+        })
+      );
+      setToast({
+        message: "Shopify connected successfully!",
+        type: "success",
+        isVisible: true,
+      });
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (error) {
+      let errorMessage = "An error occurred during Shopify connection.";
+
+      switch (error) {
+        case "invalid_state":
+          errorMessage =
+            "Connection session expired. Please try connecting again.";
+          break;
+        case "shopify_auth_denied":
+          errorMessage = "Shopify authorization was denied. Please try again.";
+          break;
+        case "invalid_callback_params":
+          errorMessage = "Invalid connection parameters. Please try again.";
+          break;
+        case "token_exchange_failed":
+          errorMessage =
+            "Failed to complete Shopify connection. Please try again.";
+          break;
+        case "connection_exists":
+          errorMessage = "Shopify is already connected to another account.";
+          break;
+        default:
+          errorMessage = `Connection error: ${error}`;
+      }
+
+      console.error("Shopify connection error:", errorMessage);
+      setToast({
+        message: errorMessage,
+        type: "error",
+        isVisible: true,
+      });
+
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  const handleTwilioConnect = async (credentials) => {
+    try {
+      // Here you would typically make an API call to save the credentials
+      console.log("Connecting Twilio with credentials:", credentials);
+
+      // For now, just update the status
+      setOnboardingSteps((prev) =>
+        prev.map((step) => {
+          if (step.id === 2) {
+            return { ...step, completed: true };
+          }
+          return step;
+        })
+      );
+
+      setToast({
+        message: "Twilio connected successfully!",
+        type: "success",
+        isVisible: true,
+      });
+    } catch (error) {
+      console.error("Error connecting Twilio:", error);
+      setToast({
+        message: "Failed to connect Twilio. Please try again.",
+        type: "error",
+        isVisible: true,
+      });
     }
   };
+
+  // Card design similar to /integration page
+  function OnboardingCard({ step, onAction }) {
+    const Icon = step.icon;
+    return (
+      <div
+        className={`relative flex flex-col bg-white border border-gray-200 rounded-2xl shadow-sm p-6 transition-all ${
+          step.completed ? "ring-2 ring-green-400" : "hover:shadow-md"
+        }`}
+      >
+        <div className="flex items-center gap-4 mb-4">
+          <div
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold border-2 border-white shadow ${ICON_BG[step.color]}`}
+          >
+            <Icon className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {step.title}
+              </h3>
+              {step.completed && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                  Connected
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500">{step.description}</p>
+          </div>
+        </div>
+        <div className="flex-1" />
+        <button
+          onClick={onAction}
+          className={`mt-4 w-full py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            step.completed
+              ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              : "bg-gray-900 text-white hover:bg-gray-800"
+          }`}
+        >
+          {step.completed ? "Manage" : "Connect"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -60,48 +227,27 @@ const DashboardPage = () => {
 
         {/* Onboarding Steps */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {onboardingSteps.map((step, index) => {
-            const Icon = step.icon;
-            return (
-              <div
-                key={step.id}
-                className={`p-6 rounded-lg border shadow-sm ${getColorClasses(
-                  step.color
-                )}`}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        step.color === "green"
-                          ? "bg-green-100"
-                          : step.color === "red"
-                          ? "bg-red-100"
-                          : "bg-purple-100"
-                      }`}
-                    >
-                      <Icon
-                        className={`w-5 h-5 ${
-                          step.color === "green"
-                            ? "text-green-600"
-                            : step.color === "red"
-                            ? "text-red-600"
-                            : "text-purple-600"
-                        }`}
-                      />
-                    </div>
-                    <span className="font-semibold">
-                      {step.id}. {step.title}
-                    </span>
-                  </div>
-                  <button className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors">
-                    Continue
-                  </button>
-                </div>
-                <p className="text-sm opacity-80">{step.description}</p>
-              </div>
-            );
-          })}
+          {onboardingSteps.map((step) => (
+            <OnboardingCard
+              key={step.id}
+              step={step}
+              onAction={() => {
+                if (step.id === 1) {
+                  if (step.completed) {
+                    router.push("/integration");
+                  } else {
+                    setShowShopifyModal(true);
+                  }
+                } else if (step.id === 2) {
+                  if (step.completed) {
+                    router.push("/integration");
+                  } else {
+                    setShowTwilioModal(true);
+                  }
+                }
+              }}
+            />
+          ))}
         </div>
 
         {/* Bottom Section */}
@@ -115,6 +261,38 @@ const DashboardPage = () => {
           </p>
         </div>
       </div>
+
+      {/* Shopify Connect Modal */}
+      <ShopifyConnectModal
+        isOpen={showShopifyModal}
+        onClose={() => setShowShopifyModal(false)}
+        onSuccess={() => {
+          setShowShopifyModal(false);
+          setOnboardingSteps((prev) =>
+            prev.map((step) => {
+              if (step.id === 1) {
+                return { ...step, completed: true };
+              }
+              return step;
+            })
+          );
+        }}
+      />
+
+      {/* Twilio Connect Modal */}
+      <TwilioImportForm
+        isOpen={showTwilioModal}
+        onClose={() => setShowTwilioModal(false)}
+        onConnect={handleTwilioConnect}
+      />
+
+      {/* Toast Notification */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast({ ...toast, isVisible: false })}
+      />
     </DashboardLayout>
   );
 };
