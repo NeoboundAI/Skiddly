@@ -65,7 +65,9 @@ export async function shopifyGraphqlRequest(
   query,
   variables = {}
 ) {
-  const url = `https://${shop}/admin/api/2025-07/graphql.json`;
+  const url = `https://${shop}/admin/api/${
+    process.env.SHOPIFY_VERSION || "2025-07"
+  }/graphql.json`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -169,4 +171,25 @@ export async function getShopifyProducts(shop, accessToken, limit = 50) {
   `;
 
   return shopifyGraphqlRequest(shop, accessToken, query, { first: limit });
+}
+
+export async function getShopifyAbandonedCarts(shop, accessToken, limit = 50) {
+  const url = `https://${shop}/admin/api/${
+    process.env.SHOPIFY_VERSION || "2025-07"
+  }/checkouts.json?status=abandoned&limit=${limit}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch abandoned carts: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.checkouts || [];
 }

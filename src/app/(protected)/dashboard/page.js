@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+
 import ShopifyConnectModal from "@/components/ShopifyConnectModal";
 import TwilioImportForm from "@/app/(protected)/integration/twilio/ImportForm";
 import Toast from "@/components/Toast";
@@ -30,7 +31,7 @@ const DashboardPage = () => {
     {
       id: 1,
       title: "Connect Shopify",
-      icon: FiShoppingBag,
+      icon: "/shopify.svg",
       color: "green",
       description: "Link your store to start syncing data",
       completed: false,
@@ -38,7 +39,7 @@ const DashboardPage = () => {
     {
       id: 2,
       title: "Connect Twilio",
-      icon: FiPhone,
+      icon: "/twilio.svg",
       color: "red",
       description: "Set up your phone system for calls",
       completed: false,
@@ -46,7 +47,7 @@ const DashboardPage = () => {
     {
       id: 3,
       title: "Choose Agent",
-      icon: FiUser,
+      icon: "/usericon.svg",
       color: "purple",
       description: "Select your AI assistant personality",
       completed: false,
@@ -91,11 +92,25 @@ const DashboardPage = () => {
           return step;
         })
       );
-      setToast({
-        message: "Shopify connected successfully!",
-        type: "success",
-        isVisible: true,
-      });
+
+      // Check if webhook registration was skipped
+      const webhookSkipped = urlParams.get("webhook_skipped");
+
+      if (webhookSkipped === "true") {
+        setToast({
+          message:
+            "Shopify connected! Webhooks skipped in development. Set WEBHOOK_URL for full functionality.",
+          type: "warning",
+          isVisible: true,
+        });
+      } else {
+        setToast({
+          message: "Shopify connected successfully!",
+          type: "success",
+          isVisible: true,
+        });
+      }
+
       // Clear the URL parameter
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -169,43 +184,49 @@ const DashboardPage = () => {
 
   // Card design similar to /integration page
   function OnboardingCard({ step, onAction }) {
-    const Icon = step.icon;
     return (
       <div
-        className={`relative flex flex-col bg-white border border-gray-200 rounded-2xl shadow-sm p-6 transition-all ${
-          step.completed ? "ring-2 ring-green-400" : "hover:shadow-md"
+        className={`flex p-4 items-center justify-between bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg  mb-2 transition-all ${
+          step.completed ? "ring-2 ring-green-400" : "hover:shadow-sm"
         }`}
       >
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-3">
           <div
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl font-bold border-2 border-white shadow ${ICON_BG[step.color]}`}
+            className={`p-4 rounded-full  flex items-center justify-center text-xl font-bold border border-[#EAECF0] ${
+              step.completed ? "bg-[#F2F4F7]" : "bg-white"
+            }`}
           >
-            <Icon className="w-6 h-6" />
+            <img src={step.icon} alt={step.title} className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <span className="text-base font-medium text-[#101828]">
+                {step.id}.
+              </span>
+              <span className="text-base font-semibold text-[#101828]">
                 {step.title}
-              </h3>
+              </span>
               {step.completed && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
                   Connected
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-500">{step.description}</p>
+            {/* Optionally, you can show description here if needed */}
+            {/* <p className="text-xs text-gray-500">{step.description}</p> */}
           </div>
         </div>
-        <div className="flex-1" />
         <button
           onClick={onAction}
-          className={`mt-4 w-full py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+          disabled={step.completed}
+          className={`ml-4 px-4 py-2 rounded  text-sm font-medium transition-colors ${
             step.completed
-              ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              : "bg-gray-900 text-white hover:bg-gray-800"
+              ? "bg-[#F2F4F7] text-[#101828] cursor-not-allowed"
+              : "bg-[#101828] text-white hover:bg-[#1A1A2E] cursor-pointer"
           }`}
+          style={{ minWidth: 80 }}
         >
-          {step.completed ? "Manage" : "Connect"}
+          {step.completed ? "Completed" : "Continue"}
         </button>
       </div>
     );
@@ -213,20 +234,24 @@ const DashboardPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto">
+      <div className="">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Home</h1>
-          <div className="flex items-center space-x-2">
-            <p className="text-lg text-gray-700">
+        <div className="mb-6">
+          <h1 className="text-2xl border-b border-[#EAECF0] font-semibold text-[#000000] pb-4 mb-4">
+            Home
+          </h1>
+          <div className="flex items-left flex-col justify-center space-x-2">
+            <p className="text-2xl text-[#000000] font-semibold">
               Hi {session?.user?.name?.split(" ")[0] || "User"}!
             </p>
-            <p className="text-gray-500">Start setting up your store</p>
+            <p className="text-[#667085] text-base font-medium">
+              Start setting up your store
+            </p>
           </div>
         </div>
 
         {/* Onboarding Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
           {onboardingSteps.map((step) => (
             <OnboardingCard
               key={step.id}
@@ -244,6 +269,8 @@ const DashboardPage = () => {
                   } else {
                     setShowTwilioModal(true);
                   }
+                } else if (step.id === 3) {
+                  router.push("/agent");
                 }
               }}
             />
@@ -252,12 +279,19 @@ const DashboardPage = () => {
 
         {/* Bottom Section */}
         <div className="text-center py-12">
-          <div className="w-24 h-24 bg-gray-200 rounded-lg mx-auto mb-6 flex items-center justify-center">
-            <FiBox className="w-12 h-12 text-gray-400" />
+          <div className="w-24 h-24  rounded-lg mx-auto mb-6 flex items-center justify-center">
+            <img
+              src="/dropbox.png"
+              alt="goodthings"
+              className="w-[104px] h-[104px]"
+            />
           </div>
-          <p className="text-lg text-gray-700 font-medium">
-            Good things coming your way! Complete setting up your store to start
-            calling your abandoned leads.
+          <p className="text-2xl text-[#020617] font-semibold mb-2">
+            Good things coming your way!
+          </p>
+          <p className="text-base text-[#667085] font-medium mb-6">
+            Complete setting up your store to start calling your abandoned
+            leads.
           </p>
         </div>
       </div>

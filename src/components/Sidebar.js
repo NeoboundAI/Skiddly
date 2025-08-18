@@ -24,15 +24,19 @@ const Sidebar = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session } = useSession();
+
   const userMenuRef = useRef(null);
 
-  const navigationItems = [
+  // Split navigation into two sections: main and billing
+  const mainNavigationItems = [
     { name: "Home", icon: FiHome, path: "/dashboard" },
     { name: "Orders", icon: FiBox, path: "/orders" },
     { name: "Agent", icon: FiUser, path: "/agent" },
     { name: "Knowledge", icon: FiBook, path: "/knowledge" },
     { name: "Integration", icon: FiLink, path: "/integration" },
     { name: "Analytics", icon: FiBarChart2, path: "/analytics" },
+  ];
+  const secondaryNavigationItems = [
     { name: "Configuration", icon: FiSettings, path: "/configuration" },
     { name: "Billing & Usage", icon: FiCreditCard, path: "/billing" },
   ];
@@ -61,81 +65,163 @@ const Sidebar = () => {
 
   return (
     <div
-      className={`bg-white border-r border-gray-200 transition-all duration-300 ${
-        isCollapsed ? "w-16" : "w-64"
+      className={`bg-[#F2F4F7] relative  transition-all duration-300 ${
+        isCollapsed ? "w-[74px]" : "w-56"
       }`}
     >
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="px-1 py-3 rounded-full absolute cursor-pointer -right-3 top-1/2 -translate-y-1/2 bg-white border border-[#D9D6FE]"
+        style={{ zIndex: 10 }}
+      >
+        {isCollapsed ? (
+          <FiChevronRight className="w-3 h-3 text-[#000000]" />
+        ) : (
+          <FiChevronLeft className="w-3 h-3 text-[#000000]" />
+        )}
+      </button>
       <div className="flex flex-col h-full">
         {/* Logo Section */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="p-4 py-[40px] ">
+          <div className="flex items-center justify-center">
             {!isCollapsed && (
               <div className="flex items-center justify-center ">
-                <img src="/skiddly.svg" alt="Skiddly Logo" className="w-34 h-10" />
+                <img
+                  src="/skiddly.svg"
+                  alt="Skiddly Logo"
+                  className="w-34 h-10"
+                />
               </div>
             )}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-1 rounded-md hover:bg-gray-100 transition-colors"
-            >
-              {isCollapsed ? (
-                <FiChevronRight className="w-4 h-4 text-gray-600" />
-              ) : (
-                <FiChevronLeft className="w-4 h-4 text-gray-600" />
-              )}
-            </button>
+            {isCollapsed && (
+              <div className="flex items-center justify-center ">
+                <img
+                  src="/skiddlysmall.png"
+                  alt="Skiddly Logo"
+                  className="w-6 h-8 m-auto"
+                />
+              </div>
+            )}
           </div>
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 p-4 space-y-2">
-          {navigationItems.map((item) => {
+        <nav className="flex-1 p-4 flex flex-col">
+          {/* Main navigation */}
+          {mainNavigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.path;
 
             return (
               <button
                 key={item.name}
-                onClick={() => handleNavigation(item.path)}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                style={
                   isActive
-                    ? "bg-purple-50 text-purple-600 border border-purple-200"
-                    : "text-gray-700 hover:bg-gray-50"
+                    ? {
+                        boxShadow: "0px 4px 8px 0px #6C44FA1A",
+                      }
+                    : {}
+                }
+                onClick={() => handleNavigation(item.path)}
+                className={`w-full flex items-center cursor-pointer justify-between rounded-lg p-3 transition-colors ${
+                  isActive
+                    ? "bg-white text-[#000000] border border-[#BDB4FE]"
+                    : "text-[#000000] hover:bg-[#F2F4F7]"
                 }`}
               >
-                <Icon
-                  className={`w-5 h-5 ${
-                    isActive ? "text-purple-600" : "text-gray-500"
-                  }`}
-                />
-                {!isCollapsed && (
-                  <span className="font-medium">{item.name}</span>
+                <div className="flex  items-center ">
+                  <Icon
+                    className={`w-4 h-4  ${
+                      isActive ? "text-[#98A2B3]" : "text-[#98A2B3]"
+                    }`}
+                  />
+                  {!isCollapsed && (
+                    <span className="font-medium ml-2 text-sm line-height-[18px]">
+                      {item.name}
+                    </span>
+                  )}
+                </div>
+                {isActive && !isCollapsed && (
+                  <FiChevronRight className="w-4 h-4  text-[#000000]" />
                 )}
+              </button>
+            );
+          })}
+
+          {/* Gap of 24px between Configuration and Billing & Usage */}
+          <div className="mt-6" />
+
+          {/* Billing navigation */}
+          {secondaryNavigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.path;
+
+            return (
+              <button
+                key={item.name}
+                style={
+                  isActive
+                    ? {
+                        boxShadow: "0px 4px 8px 0px #6C44FA1A",
+                      }
+                    : {}
+                }
+                onClick={() => handleNavigation(item.path)}
+                className={`w-full flex items-center cursor-pointer justify-between rounded-lg p-3 transition-colors ${
+                  isActive
+                    ? "bg-white text-[#000000] border border-[#BDB4FE]"
+                    : "text-[#000000] hover:bg-[#F2F4F7]"
+                }`}
+              >
+                <div className="flex  items-center ">
+                  <Icon
+                    className={`w-4 h-4  ${
+                      isActive ? "text-[#98A2B3]" : "text-[#98A2B3]"
+                    }`}
+                  />
+                  {!isCollapsed && (
+                    <span className="font-medium ml-2 text-sm line-height-[18px]">
+                      {item.name}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  {isActive && (
+                    <FiChevronRight className="w-4 h-4  text-[#000000]" />
+                  )}
+                </div>
               </button>
             );
           })}
         </nav>
 
         {/* User Profile Section */}
-        <div
-          className="p-4 border-t border-gray-200 relative"
-          ref={userMenuRef}
-        >
+        <div className="p-4 py-[40px]  relative" ref={userMenuRef}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="w-full flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 transition-colors"
+            className="w-full flex items-center space-x-3 justify-center rounded-lg  transition-colors"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {session?.user?.name?.charAt(0) || "U"}
-              </span>
-            </div>
+            {session?.user?.image ? (
+              <img
+                src={session.user.image}
+                alt={session.user.name || "User"}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs font-medium">
+                  {session?.user?.name?.charAt(0) || "U"}
+                </span>
+              </div>
+            )}
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-base font-semibold text-[#000000] truncate">
                   {session?.user?.name || "User"}
                 </p>
-                <p className="text-xs text-gray-500">Manage account</p>
+                <p className="text-xs font-medium text-[#98A2B3]">
+                  Manage account
+                </p>
               </div>
             )}
           </button>

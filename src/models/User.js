@@ -49,6 +49,19 @@ const userSchema = new mongoose.Schema(
         default: false,
       },
       connectedAt: Date,
+      webhooksRegistered: {
+        type: Boolean,
+        default: false,
+      },
+      webhookRegistrationDate: Date,
+      registeredWebhooks: [
+        {
+          topic: String,
+          id: String,
+          status: String,
+          error: String,
+        },
+      ],
     },
   },
   {

@@ -44,12 +44,15 @@ export async function POST(request) {
     console.log("Shopify connect - Shop:", shop);
 
     // Clear any existing state and store new state in user document for verification
-    const user = await User.findOneAndUpdate({ email: session.user.email }, {
-      "shopify.state": state,
-      "shopify.shop": shop,
-      "shopify.isActive": false, // Reset connection status
-      "shopify.accessToken": null, // Clear any existing token
-    });
+    const user = await User.findOneAndUpdate(
+      { email: session.user.email },
+      {
+        "shopify.state": state,
+        "shopify.shop": shop,
+        "shopify.isActive": false, // Reset connection status
+        "shopify.accessToken": null, // Clear any existing token
+      }
+    );
 
     console.log("user in connect", user);
 
