@@ -193,3 +193,31 @@ export async function getShopifyAbandonedCarts(shop, accessToken, limit = 50) {
   const data = await response.json();
   return data.checkouts || [];
 }
+
+// Helper function to get shop info
+export async function getShopInfo(shop, accessToken) {
+  const url = `https://${shop}/admin/api/${
+    process.env.SHOPIFY_VERSION || "2025-07"
+  }/shop.json`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch shop info: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.shop;
+}
+
+// Helper function to validate shop domain format
+export function validateShopDomain(shop) {
+  const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+  return shopRegex.test(shop);
+}

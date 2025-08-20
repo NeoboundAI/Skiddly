@@ -17,6 +17,7 @@ import {
   FiLogOut,
   FiUser as FiUserIcon,
 } from "react-icons/fi";
+import ShopSelector from "./ShopSelector";
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -104,6 +105,9 @@ const Sidebar = () => {
             )}
           </div>
         </div>
+
+        {/* Shop Selector */}
+        <ShopSelector isCollapsed={isCollapsed} />
 
         {/* Navigation Items */}
         <nav className="flex-1 p-4 flex flex-col">

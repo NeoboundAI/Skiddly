@@ -1,8 +1,26 @@
 "use client";
 
+import { useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import Sidebar from "./Sidebar";
+import useShopStore from "@/stores/shopStore";
 
 const DashboardLayout = ({ children }) => {
+  const { data: session, status } = useSession();
+  const { clearShops } = useShopStore();
+  const queryClient = useQueryClient();
+
+  // Clear shops when user logs out
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      clearShops();
+      // Clear React Query cache
+      queryClient.clear();
+      localStorage.removeItem("react-query-cache");
+    }
+  }, [status, clearShops, queryClient]);
+
   return (
     <div className="flex h-screen bg-[#F2F4F7]">
       {/* Sidebar */}

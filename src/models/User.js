@@ -39,30 +39,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "credentials",
     },
-    shopify: {
-      shop: String,
-      accessToken: String,
-      scope: String,
-      state: String,
-      isActive: {
-        type: Boolean,
-        default: false,
-      },
-      connectedAt: Date,
-      webhooksRegistered: {
-        type: Boolean,
-        default: false,
-      },
-      webhookRegistrationDate: Date,
-      registeredWebhooks: [
-        {
-          topic: String,
-          id: String,
-          status: String,
-          error: String,
-        },
-      ],
-    },
   },
   {
     timestamps: true,

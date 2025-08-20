@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { exchangeCodeForToken } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import ShopifyShop from "@/models/ShopifyShop";
 
 export async function GET(request) {
   try {
@@ -17,12 +18,22 @@ export async function GET(request) {
     console.log("error", error);
 
     if (error) {
+      // Clean up any incomplete connection for this state
+      if (state) {
+        await connectDB();
+        await ShopifyShop.deleteMany({ oauthState: state });
+      }
       return NextResponse.redirect(
         `${process.env.NEXTAUTH_URL}/dashboard?error=shopify_auth_denied`
       );
     }
 
     if (!code || !shop || !state) {
+      // Clean up any incomplete connection for this state
+      if (state) {
+        await connectDB();
+        await ShopifyShop.deleteMany({ oauthState: state });
+      }
       return NextResponse.redirect(
         `${process.env.NEXTAUTH_URL}/dashboard?error=invalid_callback_params`
       );
@@ -30,33 +41,40 @@ export async function GET(request) {
 
     await connectDB();
 
-    // Find user by state (stored during OAuth initiation)
-    const user = await User.findOne({ "shopify.state": state });
-    if (!user) {
-      console.error("No user found with state:", state);
-      // Check if user has any Shopify connection
-      const usersWithShopify = await User.find({ "shopify.isActive": true });
-      if (usersWithShopify.length > 0) {
-        // If there's already a connected user, redirect with a different error
-        return NextResponse.redirect(
-          `${process.env.NEXTAUTH_URL}/dashboard?error=connection_exists`
-        );
-      }
+    // Find shop connection by state (stored during OAuth initiation)
+    const shopConnection = await ShopifyShop.findOne({ oauthState: state });
+    if (!shopConnection) {
+      console.error("No shop connection found with state:", state);
+      // Clean up any stale connections for this state
+      await ShopifyShop.deleteMany({ oauthState: state });
       return NextResponse.redirect(
         `${process.env.NEXTAUTH_URL}/dashboard?error=invalid_state`
+      );
+    }
+
+    // Get the user
+    const user = await User.findById(shopConnection.userId);
+    if (!user) {
+      console.error(
+        "User not found for shop connection:",
+        shopConnection.userId
+      );
+      return NextResponse.redirect(
+        `${process.env.NEXTAUTH_URL}/dashboard?error=user_not_found`
       );
     }
 
     // Exchange authorization code for access token
     const tokenResponse = await exchangeCodeForToken(shop, code);
 
-    // Update user with Shopify connection details
-    await User.findByIdAndUpdate(user._id, {
-      "shopify.accessToken": tokenResponse.access_token,
-      "shopify.scope": tokenResponse.scope,
-      "shopify.isActive": true,
-      "shopify.connectedAt": new Date(),
-      "shopify.state": null, // Clear the state
+    // Update shop connection with Shopify connection details
+    await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
+      accessToken: tokenResponse.access_token,
+      scope: tokenResponse.scope,
+      isActive: true,
+      connectedAt: new Date(),
+      oauthState: null, // Clear the state
+      oauthNonce: null, // Clear the nonce
     });
 
     console.log("Successfully connected Shopify for user:", user._id);
@@ -82,10 +100,10 @@ export async function GET(request) {
             "💡 Set WEBHOOK_URL environment variable to your ngrok URL for development webhooks"
           );
 
-          // Update user to show webhook registration was skipped
-          await User.findByIdAndUpdate(user._id, {
-            "shopify.webhooksRegistered": false,
-            "shopify.registeredWebhooks": [
+          // Update shop connection to show webhook registration was skipped
+          await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
+            webhooksRegistered: false,
+            registeredWebhooks: [
               {
                 topic: "development_skipped",
                 error:
@@ -191,11 +209,11 @@ export async function GET(request) {
         }
       }
 
-      // Update user with webhook registration status
-      await User.findByIdAndUpdate(user._id, {
-        "shopify.webhooksRegistered": webhookSuccessCount > 0,
-        "shopify.webhookRegistrationDate": new Date(),
-        "shopify.registeredWebhooks": registeredWebhooks,
+      // Update shop connection with webhook registration status
+      await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
+        webhooksRegistered: webhookSuccessCount > 0,
+        webhookRegistrationDate: new Date(),
+        registeredWebhooks: registeredWebhooks,
       });
 
       console.log(
@@ -204,10 +222,10 @@ export async function GET(request) {
     } catch (webhookError) {
       console.error("Error registering webhooks:", webhookError);
       // Don't fail the connection if webhook registration fails
-      // But still update user to show webhook registration failed
-      await User.findByIdAndUpdate(user._id, {
-        "shopify.webhooksRegistered": false,
-        "shopify.registeredWebhooks": [
+      // But still update shop connection to show webhook registration failed
+      await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
+        webhooksRegistered: false,
+        registeredWebhooks: [
           {
             topic: "all",
             error: webhookError.message,
@@ -222,6 +240,10 @@ export async function GET(request) {
     );
   } catch (error) {
     console.error("Shopify callback error:", error);
+    // Clean up incomplete connection on token exchange failure
+    if (state) {
+      await ShopifyShop.deleteMany({ oauthState: state });
+    }
     return NextResponse.redirect(
       `${process.env.NEXTAUTH_URL}/dashboard?error=token_exchange_failed`
     );

@@ -14,9 +14,11 @@ import {
 } from "react-icons/fi";
 import Toast from "@/components/Toast";
 import WebhookStatus from "@/components/WebhookStatus";
+import useShopStore from "@/stores/shopStore";
 
 const OrdersPage = () => {
   const { data: session } = useSession();
+  const { selectedShop } = useShopStore();
   const [abandonedCarts, setAbandonedCarts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -27,8 +29,8 @@ const OrdersPage = () => {
   });
 
   const fetchAbandonedCarts = async () => {
-    if (!session?.user?.shopify?.isActive) {
-      setError("Shopify not connected. Please connect your store first.");
+    if (!selectedShop) {
+      setError("No shop selected. Please select a shop from the sidebar.");
       return;
     }
 
@@ -36,7 +38,9 @@ const OrdersPage = () => {
     setError(null);
 
     try {
-      const response = await fetch("/api/shopify/abandoned-carts?limit=50");
+      const response = await fetch(
+        `/api/shopify/abandoned-carts?shop=${selectedShop.shop}&limit=50`
+      );
       const data = await response.json();
 
       if (!response.ok) {
@@ -53,10 +57,10 @@ const OrdersPage = () => {
   };
 
   useEffect(() => {
-    if (session?.user?.shopify?.isActive) {
+    if (session?.user && selectedShop) {
       fetchAbandonedCarts();
     }
-  }, [session]);
+  }, [session, selectedShop]);
 
   const formatCurrency = (amount, currency = "USD") => {
     return new Intl.NumberFormat("en-US", {
@@ -92,7 +96,7 @@ const OrdersPage = () => {
     };
   };
 
-  if (!session?.user?.shopify?.isActive) {
+  if (!selectedShop) {
     return (
       <DashboardLayout>
         <div className="max-w-6xl mx-auto">
@@ -109,10 +113,10 @@ const OrdersPage = () => {
                 <span className="text-2xl">📦</span>
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Connect Shopify First
+                Select a Shop
               </h3>
               <p className="text-gray-600">
-                Connect your Shopify store to start managing orders and
+                Please select a Shopify shop from the sidebar to view orders and
                 abandoned carts
               </p>
             </div>
@@ -132,6 +136,11 @@ const OrdersPage = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Orders</h1>
               <p className="text-gray-600">
                 Manage your store orders and abandoned carts
+                {selectedShop && (
+                  <span className="ml-2 text-sm text-blue-600 font-medium">
+                    • {selectedShop.shop.replace(".myshopify.com", "")}
+                  </span>
+                )}
               </p>
             </div>
             <button

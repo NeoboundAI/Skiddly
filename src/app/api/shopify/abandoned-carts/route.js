@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import ShopifyShop from "@/models/ShopifyShop";
 import { getShopifyAbandonedCarts } from "@/lib/shopify";
 
 export async function GET(request) {
@@ -19,32 +20,49 @@ export async function GET(request) {
 
     await connectDB();
 
-    // Find user and get Shopify credentials
+    // Find user
     const user = await User.findOne({ email: session.user.email });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (
-      !user.shopify?.isActive ||
-      !user.shopify?.accessToken ||
-      !user.shopify?.shop
-    ) {
+    // Get query parameters for shop selection
+    const { searchParams } = new URL(request.url);
+    const shop = searchParams.get("shop");
+    const limit = parseInt(searchParams.get("limit")) || 50;
+
+    // Find active Shopify connection for this user
+    let shopConnection;
+    if (shop) {
+      // If specific shop is requested, find that connection
+      shopConnection = await ShopifyShop.findOne({
+        userId: user._id,
+        shop: shop,
+        isActive: true,
+      });
+    } else {
+      // If no shop specified, get the first active connection
+      shopConnection = await ShopifyShop.findOne({
+        userId: user._id,
+        isActive: true,
+      });
+    }
+
+    if (!shopConnection) {
       return NextResponse.json(
-        { error: "Shopify not connected. Please connect your store first." },
+        {
+          error:
+            "No active Shopify connection found. Please connect your store first.",
+        },
         { status: 400 }
       );
     }
 
-    // Get query parameters
-    const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get("limit")) || 50;
-
     // Fetch abandoned carts from Shopify
     const abandonedCarts = await getShopifyAbandonedCarts(
-      user.shopify.shop,
-      user.shopify.accessToken,
+      shopConnection.shop,
+      shopConnection.accessToken,
       limit
     );
 

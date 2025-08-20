@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import ShopifyShop from "@/models/ShopifyShop";
 
 export async function POST(request) {
   try {
@@ -15,11 +16,14 @@ export async function POST(request) {
 
     await connectDB();
 
-    // Find user with this shop
-    const user = await User.findOne({ "shopify.isActive": true });
-    if (!user) {
+    // Find shop connection
+    const shopConnection = await ShopifyShop.findOne({
+      shop: shop,
+      isActive: true,
+    });
+    if (!shopConnection) {
       return NextResponse.json(
-        { error: "No active Shopify connection found" },
+        { error: "No active Shopify connection found for this shop" },
         { status: 404 }
       );
     }
@@ -133,11 +137,11 @@ export async function POST(request) {
       }
     }
 
-    // Update user with webhook registration status
-    await User.findByIdAndUpdate(user._id, {
-      "shopify.webhooksRegistered": webhookSuccessCount > 0,
-      "shopify.webhookRegistrationDate": new Date(),
-      "shopify.registeredWebhooks": registeredWebhooks,
+    // Update shop connection with webhook registration status
+    await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
+      webhooksRegistered: webhookSuccessCount > 0,
+      webhookRegistrationDate: new Date(),
+      registeredWebhooks: registeredWebhooks,
     });
 
     console.log(

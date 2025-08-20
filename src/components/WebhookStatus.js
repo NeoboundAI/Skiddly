@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import WebhookRegistrationButton from "./WebhookRegistrationButton";
 import WebhookRemovalButton from "./WebhookRemovalButton";
+import useShopStore from "@/stores/shopStore";
 
 export default function WebhookStatus({ user }) {
+  const { selectedShop } = useShopStore();
   const [showManualRegistration, setShowManualRegistration] = useState(false);
 
-  const webhooksRegistered = user?.shopify?.webhooksRegistered;
-  const registeredWebhooks = user?.shopify?.registeredWebhooks || [];
-  const webhookRegistrationDate = user?.shopify?.webhookRegistrationDate;
+  // Use selected shop from context
+  const webhooksRegistered = selectedShop?.webhooksRegistered;
+  const registeredWebhooks = selectedShop?.registeredWebhooks || [];
+  const webhookRegistrationDate = selectedShop?.webhookRegistrationDate;
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -37,6 +40,19 @@ export default function WebhookStatus({ user }) {
     }
   };
 
+  if (!selectedShop) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Shopify Webhook Status
+        </h3>
+        <p className="text-gray-500">
+          Please select a shop to view webhook status.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-4">
@@ -53,6 +69,10 @@ export default function WebhookStatus({ user }) {
           {webhooksRegistered ? "Active" : "Inactive"}
         </div>
       </div>
+
+      <p className="text-sm text-gray-600 mb-4">
+        Connected shop: {selectedShop.shop}
+      </p>
 
       {webhookRegistrationDate && (
         <p className="text-sm text-gray-600 mb-4">
@@ -118,8 +138,8 @@ export default function WebhookStatus({ user }) {
             Manual Webhook Registration
           </h4>
           <WebhookRegistrationButton
-            shop={user?.shopify?.shop}
-            accessToken={user?.shopify?.accessToken}
+            shop={selectedShop?.shop}
+            accessToken={selectedShop?.accessToken}
           />
         </div>
       )}
@@ -132,8 +152,8 @@ export default function WebhookStatus({ user }) {
               Register Webhooks
             </h5>
             <WebhookRegistrationButton
-              shop={user?.shopify?.shop}
-              accessToken={user?.shopify?.accessToken}
+              shop={selectedShop?.shop}
+              accessToken={selectedShop?.accessToken}
             />
           </div>
           <div>
@@ -141,8 +161,8 @@ export default function WebhookStatus({ user }) {
               Remove Webhooks
             </h5>
             <WebhookRemovalButton
-              shop={user?.shopify?.shop}
-              accessToken={user?.shopify?.accessToken}
+              shop={selectedShop?.shop}
+              accessToken={selectedShop?.accessToken}
             />
           </div>
         </div>

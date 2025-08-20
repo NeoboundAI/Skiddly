@@ -9,6 +9,8 @@ import ShopifyConnectModal from "@/components/ShopifyConnectModal";
 import TwilioImportForm from "@/app/(protected)/integration/twilio/ImportForm";
 import Toast from "@/components/Toast";
 import { FiShoppingBag, FiPhone, FiUser, FiBox } from "react-icons/fi";
+import useShopStore from "@/stores/shopStore";
+import { useShopConnection } from "@/hooks/useShops";
 
 // Card icon backgrounds
 const ICON_BG = {
@@ -19,6 +21,8 @@ const ICON_BG = {
 
 const DashboardPage = () => {
   const { data: session } = useSession();
+  const { selectedShop } = useShopStore();
+  const { updateShopsAfterConnection } = useShopConnection();
   const router = useRouter();
   const [showShopifyModal, setShowShopifyModal] = useState(false);
   const [showTwilioModal, setShowTwilioModal] = useState(false);
@@ -54,15 +58,17 @@ const DashboardPage = () => {
     },
   ]);
 
-  // Update onboarding steps based on session data
+  // Update onboarding steps based on session data and shop context
   useEffect(() => {
     if (session?.user) {
+      const hasShopifyConnection = !!selectedShop;
+
       setOnboardingSteps((prev) =>
         prev.map((step) => {
           if (step.id === 1) {
             return {
               ...step,
-              completed: session.user.shopify?.isActive || false,
+              completed: hasShopifyConnection,
             };
           }
           if (step.id === 2) {
@@ -75,7 +81,7 @@ const DashboardPage = () => {
         })
       );
     }
-  }, [session]);
+  }, [session, selectedShop]);
 
   // Check for URL parameters for success/error messages from Shopify OAuth
   useEffect(() => {
@@ -302,6 +308,7 @@ const DashboardPage = () => {
         onClose={() => setShowShopifyModal(false)}
         onSuccess={() => {
           setShowShopifyModal(false);
+          updateShopsAfterConnection();
           setOnboardingSteps((prev) =>
             prev.map((step) => {
               if (step.id === 1) {

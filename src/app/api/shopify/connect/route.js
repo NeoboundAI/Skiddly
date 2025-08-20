@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { generateShopifyAuthUrl } from "@/lib/shopify";
+import { generateShopifyAuthUrl, validateShopDomain } from "@/lib/shopify";
 import { getServerSession } from "next-auth";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import ShopifyShop from "@/models/ShopifyShop";
 
 export async function POST(request) {
   try {
@@ -18,6 +19,13 @@ export async function POST(request) {
 
     await connectDB();
 
+    // Clean up old incomplete connections (older than 1 hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    await ShopifyShop.deleteMany({
+      accessToken: null,
+      createdAt: { $lt: oneHourAgo },
+    });
+
     const { shop } = await request.json();
 
     if (!shop) {
@@ -28,8 +36,7 @@ export async function POST(request) {
     }
 
     // Validate shop domain format
-    const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
-    if (!shopRegex.test(shop)) {
+    if (!validateShopDomain(shop)) {
       return NextResponse.json(
         { error: "Invalid shop domain format. Use: your-shop.myshopify.com" },
         { status: 400 }
@@ -37,24 +44,53 @@ export async function POST(request) {
     }
 
     // Generate Shopify authorization URL
-    const { url, state } = generateShopifyAuthUrl(shop);
+    const { url, state, nonce } = generateShopifyAuthUrl(shop);
     console.log("Shopify connect - URL:", url);
     console.log("Shopify connect - State:", state);
     console.log("Shopify connect - User ID:", session.user.id);
     console.log("Shopify connect - Shop:", shop);
 
-    // Clear any existing state and store new state in user document for verification
-    const user = await User.findOneAndUpdate(
-      { email: session.user.email },
+    // Get user by email
+    const user = await User.findOne({ email: session.user.email });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Check if shop is already connected for this user
+    const existingShop = await ShopifyShop.findOne({
+      userId: user._id,
+      shop: shop,
+    });
+
+    // If shop exists but is incomplete (no access token), allow reconnection
+    if (existingShop && existingShop.accessToken) {
+      return NextResponse.json(
+        { error: "Shop is already connected to this account" },
+        { status: 400 }
+      );
+    }
+
+    // If incomplete connection exists, remove it to start fresh
+    if (existingShop && !existingShop.accessToken) {
+      console.log("Removing incomplete shop connection for reconnection");
+      await ShopifyShop.findByIdAndDelete(existingShop._id);
+    }
+
+    // Create or update shop connection with OAuth state
+    await ShopifyShop.findOneAndUpdate(
+      { userId: user._id, shop: shop },
       {
-        "shopify.state": state,
-        "shopify.shop": shop,
-        "shopify.isActive": false, // Reset connection status
-        "shopify.accessToken": null, // Clear any existing token
-      }
+        userId: user._id,
+        shop: shop,
+        oauthState: state,
+        oauthNonce: nonce,
+        isActive: false,
+        accessToken: null,
+      },
+      { upsert: true, new: true }
     );
 
-    console.log("user in connect", user);
+    console.log("Shop connection created/updated for user:", user._id);
 
     return NextResponse.json({
       authUrl: url,
