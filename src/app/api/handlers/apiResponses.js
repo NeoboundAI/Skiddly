@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-export function successResponse<T>(data: T, statusCode = 200) {
+export function successResponse(data, statusCode = 200) {
   return NextResponse.json({ success: true, data }, { status: statusCode });
 }
 
-export function errorResponse(error: string, statusCode = 500) {
+export function errorResponse(error, statusCode = 500) {
   return NextResponse.json({ success: false, error }, { status: statusCode });
 }
 

@@ -1,35 +1,12 @@
 "use client";
 
-import type React from "react";
 import { useState, useEffect } from "react";
 
-interface PurchaseListProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onPurchaseSuccess: (phoneNumber: string) => void;
-}
-
-interface TwilioNumber {
-  phoneNumber: string;
-  friendlyName: string;
-  locality: string;
-  region: string;
-  postalCode: string;
-  lata: string;
-  rateCenter: string;
-  latitude: string;
-  longitude: string;
-}
-
-const PurchaseList: React.FC<PurchaseListProps> = ({
-  isOpen,
-  onClose,
-  onPurchaseSuccess,
-}) => {
-  const [numbers, setNumbers] = useState<TwilioNumber[]>([]);
+const PurchaseList = ({ isOpen, onClose, onPurchaseSuccess }) => {
+  const [numbers, setNumbers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [purchasingNumber, setPurchasingNumber] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [purchasingNumber, setPurchasingNumber] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -55,7 +32,7 @@ const PurchaseList: React.FC<PurchaseListProps> = ({
     }
   };
 
-  const handlePurchase = async (phoneNumber: string) => {
+  const handlePurchase = async (phoneNumber) => {
     setPurchasingNumber(phoneNumber);
     setError(null);
 

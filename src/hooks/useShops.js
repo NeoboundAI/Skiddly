@@ -20,11 +20,11 @@ export const useShops = () => {
     queryKey: ["shops"],
     queryFn: fetchShops,
     enabled: !!session?.user, // Only fetch when user is authenticated
-    gcTime: 5 * 60 * 1000, // 5 minutes
-    staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch on mount if data exists
-    refetchOnReconnect: false, // Don't refetch on reconnect
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   return query;
@@ -34,22 +34,10 @@ export const useShops = () => {
 export const useShopConnection = () => {
   const queryClient = useQueryClient();
 
-  const invalidateShops = () => {
+  const updateShopsAfterConnection = () => {
+    // Invalidate and refetch shops data
     queryClient.invalidateQueries({ queryKey: ["shops"] });
   };
 
-  const refetchShops = async () => {
-    await queryClient.refetchQueries({ queryKey: ["shops"] });
-  };
-
-  const updateShopsAfterConnection = async () => {
-    // Force refetch to get fresh data after new shop connection
-    await queryClient.refetchQueries({ queryKey: ["shops"] });
-  };
-
-  return {
-    invalidateShops,
-    refetchShops,
-    updateShopsAfterConnection,
-  };
+  return { updateShopsAfterConnection };
 };

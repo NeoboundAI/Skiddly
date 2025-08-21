@@ -6,11 +6,12 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 
 import ShopifyConnectModal from "@/components/ShopifyConnectModal";
-import TwilioImportForm from "@/app/(protected)/integration/twilio/ImportForm";
+import TwilioConnectionModal from "@/components/TwilioConnectionModal";
 import Toast from "@/components/Toast";
 import { FiShoppingBag, FiPhone, FiUser, FiBox } from "react-icons/fi";
 import useShopStore from "@/stores/shopStore";
 import { useShopConnection } from "@/hooks/useShops";
+import { useTwilio } from "@/hooks/useTwilio";
 
 // Card icon backgrounds
 const ICON_BG = {
@@ -23,6 +24,7 @@ const DashboardPage = () => {
   const { data: session } = useSession();
   const { selectedShop } = useShopStore();
   const { updateShopsAfterConnection } = useShopConnection();
+  const { hasNumbers, updateNumbersAfterConnection } = useTwilio();
   const router = useRouter();
   const [showShopifyModal, setShowShopifyModal] = useState(false);
   const [showTwilioModal, setShowTwilioModal] = useState(false);
@@ -58,7 +60,7 @@ const DashboardPage = () => {
     },
   ]);
 
-  // Update onboarding steps based on session data and shop context
+  // Update onboarding steps based on session data, shop context, and Twilio numbers
   useEffect(() => {
     if (session?.user) {
       const hasShopifyConnection = !!selectedShop;
@@ -74,14 +76,14 @@ const DashboardPage = () => {
           if (step.id === 2) {
             return {
               ...step,
-              completed: session.user.twilio?.isActive || false,
+              completed: hasNumbers,
             };
           }
           return step;
         })
       );
     }
-  }, [session, selectedShop]);
+  }, [session, selectedShop, hasNumbers]);
 
   // Check for URL parameters for success/error messages from Shopify OAuth
   useEffect(() => {
@@ -158,23 +160,15 @@ const DashboardPage = () => {
     }
   }, []);
 
-  const handleTwilioConnect = async (credentials) => {
+  const handleTwilioConnect = async (numberData) => {
     try {
-      // Here you would typically make an API call to save the credentials
-      console.log("Connecting Twilio with credentials:", credentials);
+      console.log("Twilio connected with number:", numberData);
 
-      // For now, just update the status
-      setOnboardingSteps((prev) =>
-        prev.map((step) => {
-          if (step.id === 2) {
-            return { ...step, completed: true };
-          }
-          return step;
-        })
-      );
+      // Update the numbers after connection
+      await updateNumbersAfterConnection();
 
       setToast({
-        message: "Twilio connected successfully!",
+        message: `Twilio connected successfully! Number: ${numberData.phoneNumber}`,
         type: "success",
         isVisible: true,
       });
@@ -256,6 +250,32 @@ const DashboardPage = () => {
           </div>
         </div>
 
+        {/* Plan Information */}
+        {session?.user?.plan && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                  {session.user.plan === "free"
+                    ? "Free Plan"
+                    : session.user.plan === "infrasonic"
+                    ? "Infrasonic Plan"
+                    : "Ultrasonic Plan"}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Credits remaining: {session.user.credits || 0} outbound calls
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-purple-600">
+                  {session.user.credits || 0}
+                </div>
+                <div className="text-xs text-gray-500">credits left</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Onboarding Steps */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
           {onboardingSteps.map((step) => (
@@ -321,7 +341,7 @@ const DashboardPage = () => {
       />
 
       {/* Twilio Connect Modal */}
-      <TwilioImportForm
+      <TwilioConnectionModal
         isOpen={showTwilioModal}
         onClose={() => setShowTwilioModal(false)}
         onConnect={handleTwilioConnect}

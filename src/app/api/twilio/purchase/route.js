@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import twilio from "twilio";
 import { importTwilioNumberToVapi } from "@/app/api/handlers/twilio";
 import {
@@ -8,7 +8,7 @@ import {
   successResponse,
 } from "@/app/api/handlers/apiResponses";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET() {
   try {
     const sid = process.env.TWILIO_SID;
     const token = process.env.TWILIO_TOKEN;
@@ -30,7 +30,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+export async function POST(req) {
   try {
     const { phoneNumber } = await req.json();
     if (!phoneNumber) {

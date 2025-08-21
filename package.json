@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed:agents": "node src/scripts/seed-default-agents.js"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.12",

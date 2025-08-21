@@ -5,19 +5,18 @@ import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import Sidebar from "./Sidebar";
 import useShopStore from "@/stores/shopStore";
+import { clearAppCaches } from "@/utils/cacheUtils";
 
 const DashboardLayout = ({ children }) => {
   const { data: session, status } = useSession();
   const { clearShops } = useShopStore();
   const queryClient = useQueryClient();
 
-  // Clear shops when user logs out
+  // Clear shops and cache when user logs out
   useEffect(() => {
     if (status === "unauthenticated") {
-      clearShops();
-      // Clear React Query cache
-      queryClient.clear();
-      localStorage.removeItem("react-query-cache");
+      console.log("🚪 User logged out, clearing data...");
+      clearAppCaches(queryClient, clearShops);
     }
   }, [status, clearShops, queryClient]);
 

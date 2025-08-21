@@ -74,6 +74,8 @@ export const authOptions = {
             emailVerified: user.emailVerified,
             provider: user.provider,
             onboardingCompleted: user.onboardingCompleted,
+            plan: user.plan,
+            credits: user.credits,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
           };
@@ -92,6 +94,8 @@ export const authOptions = {
         token.emailVerified = user.emailVerified;
         token.provider = user.provider;
         token.onboardingCompleted = user.onboardingCompleted;
+        token.plan = user.plan;
+        token.credits = user.credits;
         token.createdAt = user.createdAt;
         token.updatedAt = user.updatedAt;
         token.shopify = user.shopify;
@@ -107,6 +111,8 @@ export const authOptions = {
             token.emailVerified = userData.emailVerified;
             token.provider = userData.provider;
             token.onboardingCompleted = userData.onboardingCompleted;
+            token.plan = userData.plan;
+            token.credits = userData.credits;
             token.createdAt = userData.createdAt;
             token.updatedAt = userData.updatedAt;
             token.shopify = userData.shopify;
@@ -124,6 +130,8 @@ export const authOptions = {
         session.user.emailVerified = token.emailVerified;
         session.user.provider = token.provider;
         session.user.onboardingCompleted = token.onboardingCompleted;
+        session.user.plan = token.plan;
+        session.user.credits = token.credits;
         session.user.createdAt = token.createdAt;
         session.user.updatedAt = token.updatedAt;
         session.user.shopify = token.shopify;
@@ -138,7 +146,7 @@ export const authOptions = {
           const userExists = await User.findOne({ email: profile.email });
 
           if (!userExists) {
-            // Create new user from Google
+            // Create new user from Google with default "none" plan
             await User.create({
               email: profile.email,
               name: profile.name,
@@ -146,6 +154,14 @@ export const authOptions = {
               emailVerified: true,
               provider: "google",
               onboardingCompleted: false,
+              plan: "none",
+              credits: 0,
+              planDetails: {
+                totalCredits: 0,
+                agentCreationLimit: 0,
+                dataRetentionDays: 0,
+                monthlyActiveUsers: 0,
+              },
               lastLogin: new Date(),
             });
           } else {

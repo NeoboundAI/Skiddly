@@ -4,12 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
+import PlanSelector from "../../../components/PlanSelector";
 
 const OnboardingPage = () => {
   const { data: session } = useSession();
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
 
   const steps = [
     {
@@ -26,6 +28,12 @@ const OnboardingPage = () => {
     },
     {
       id: 2,
+      title: "Choose Your Plan",
+      subtitle: "Select a plan that fits your needs",
+      type: "plan-selection",
+    },
+    {
+      id: 3,
       title: "Setup your store first",
       subtitle:
         "Let's get everything connected so you can start making calls right away",
@@ -44,10 +52,39 @@ const OnboardingPage = () => {
     const timers = [];
 
     timers.push(setTimeout(() => setCurrentStep(1), 2000)); // Show "Welcome to" after 2s
-    timers.push(setTimeout(() => setCurrentStep(2), 4000)); // Show setup after 4s
+    timers.push(setTimeout(() => setCurrentStep(2), 4000)); // Show plan selection after 4s
 
     return () => timers.forEach((timer) => clearTimeout(timer));
   }, []);
+
+  const handlePlanSelect = async (planId) => {
+    try {
+      setIsCompleting(true);
+      setSelectedPlan(planId);
+
+      // Update user plan in the database
+      const response = await fetch("/api/auth/update-plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ plan: planId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update plan");
+      }
+
+      // Move to next step
+      setCurrentStep(3);
+    } catch (error) {
+      console.error("Error updating plan:", error);
+      alert("Failed to update plan. Please try again.");
+    } finally {
+      setIsCompleting(false);
+    }
+  };
 
   const completeOnboarding = async () => {
     try {
@@ -126,6 +163,13 @@ const OnboardingPage = () => {
 
                 <img src="/skiddly.svg" className="w-60 h-30" />
               </motion.div>
+            )}
+
+            {currentStepData.type === "plan-selection" && (
+              <PlanSelector
+                onPlanSelect={handlePlanSelect}
+                isLoading={isCompleting}
+              />
             )}
 
             {currentStepData.type === "setup" && (

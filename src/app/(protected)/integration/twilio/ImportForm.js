@@ -1,27 +1,10 @@
 "use client";
 
-import type React from "react";
 import { useState } from "react";
 import PurchaseList from "./PurchaseList";
 
-interface TwilioImportFormProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConnect: (credentials: TwilioCredentials) => void;
-}
-
-interface TwilioCredentials {
-  accountSid: string;
-  authToken: string;
-  phoneNumber: string;
-}
-
-const TwilioImportForm: React.FC<TwilioImportFormProps> = ({
-  isOpen,
-  onClose,
-  onConnect,
-}) => {
-  const [credentials, setCredentials] = useState<TwilioCredentials>({
+const TwilioImportForm = ({ isOpen, onClose, onConnect }) => {
+  const [credentials, setCredentials] = useState({
     accountSid: "",
     authToken: "",
     phoneNumber: "",
@@ -30,14 +13,14 @@ const TwilioImportForm: React.FC<TwilioImportFormProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showPurchaseList, setShowPurchaseList] = useState(false);
 
-  const handleInputChange = (field: keyof TwilioCredentials, value: string) => {
+  const handleInputChange = (field, value) => {
     setCredentials((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (
@@ -72,7 +55,7 @@ const TwilioImportForm: React.FC<TwilioImportFormProps> = ({
     setShowPurchaseList(true);
   };
 
-  const handlePurchaseSuccess = (phoneNumber: string) => {
+  const handlePurchaseSuccess = (phoneNumber) => {
     // Auto-fill the phone number in the form and mark as connected
     setCredentials((prev) => ({
       ...prev,

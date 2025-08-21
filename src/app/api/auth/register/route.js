@@ -79,6 +79,14 @@ export async function POST(req) {
       emailVerified: true, // No email verification required
       provider: "credentials",
       onboardingCompleted: false, // New users need onboarding
+      plan: "none",
+      credits: 0,
+      planDetails: {
+        totalCredits: 0,
+        agentCreationLimit: 0,
+        dataRetentionDays: 0,
+        monthlyActiveUsers: 0,
+      },
       createdAt: new Date(),
       lastLogin: new Date(),
     });

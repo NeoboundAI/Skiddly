@@ -39,6 +39,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "credentials",
     },
+    plan: {
+      type: String,
+      enum: ["none", "free", "infrasonic", "ultrasonic"],
+      default: "none",
+    },
+    credits: {
+      type: Number,
+      default: 0,
+    },
+    planDetails: {
+      totalCredits: { type: Number, default: 0 },
+      agentCreationLimit: { type: Number, default: 0 },
+      dataRetentionDays: { type: Number, default: 0 },
+      monthlyActiveUsers: { type: Number, default: 0 },
+      planStartDate: { type: Date },
+      planEndDate: { type: Date },
+    },
   },
   {
     timestamps: true,

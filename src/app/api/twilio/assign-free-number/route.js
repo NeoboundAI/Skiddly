@@ -1,0 +1,81 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import connectDB from "../../../../lib/mongodb";
+import TwilioNumber from "../../../../models/TwilioNumber";
+import User from "../../../../models/User";
+
+export async function POST(req) {
+  try {
+    await connectDB();
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const { phoneNumber, sid } = await req.json();
+
+    if (!phoneNumber || !sid) {
+      return NextResponse.json(
+        { success: false, message: "Phone number and SID are required" },
+        { status: 400 }
+      );
+    }
+
+    // Get user
+    const user = await User.findOne({ email: session.user.email });
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if user already has a number
+    const existingNumber = await TwilioNumber.findOne({
+      userId: user._id,
+      isActive: true,
+    });
+    if (existingNumber) {
+      return NextResponse.json(
+        { success: false, message: "User already has an active number" },
+        { status: 400 }
+      );
+    }
+
+    // Create new number record
+    const newNumber = await TwilioNumber.create({
+      userId: user._id,
+      phoneNumber,
+      sid,
+      token: process.env.TWILIO_AUTH_TOKEN, // Use our Twilio token for free numbers
+      type: "free",
+      maxCalls: 10, // Free numbers get 10 calls
+      callsUsed: 0,
+      isActive: true,
+      assignedAt: new Date(),
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Free number assigned successfully",
+      number: {
+        id: newNumber._id,
+        phoneNumber: newNumber.phoneNumber,
+        type: newNumber.type,
+        maxCalls: newNumber.maxCalls,
+        callsUsed: newNumber.callsUsed,
+      },
+    });
+  } catch (error) {
+    console.error("Error assigning free number:", error);
+    return NextResponse.json(
+      { success: false, message: "Failed to assign number" },
+      { status: 500 }
+    );
+  }
+}
