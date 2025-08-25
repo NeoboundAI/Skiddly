@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { verifyShopifyWebhook } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import AbandonedCart from "@/models/AbandonedCart";
+import {
+  logApiError,
+  logApiSuccess,
+  logBusinessEvent,
+  logDbOperation,
+  logExternalApi,
+} from "@/lib/apiLogger";
 
 export async function POST(request) {
   try {
@@ -13,7 +20,7 @@ export async function POST(request) {
     const topicHeader = request.headers.get("x-shopify-topic");
     const shopHeader = request.headers.get("x-shopify-shop-domain");
 
-    console.log("Webhook received:", {
+    logExternalApi("Shopify", "webhook_received", null, {
       topic: topicHeader,
       shop: shopHeader,
       hasHmac: !!hmacHeader,
@@ -21,21 +28,38 @@ export async function POST(request) {
 
     // Verify webhook authenticity
     if (!hmacHeader || !process.env.SHOPIFY_API_SECRET) {
-      console.error("Missing HMAC header or API secret");
+      logApiError(
+        "POST",
+        "/api/shopify/webhooks",
+        401,
+        new Error("Missing HMAC header or API secret"),
+        null,
+        {
+          topic: topicHeader,
+          shop: shopHeader,
+        }
+      );
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const isValid = verifyShopifyWebhook(body, hmacHeader);
     if (!isValid) {
-      console.error("Invalid webhook signature");
+      logApiError(
+        "POST",
+        "/api/shopify/webhooks",
+        401,
+        new Error("Invalid webhook signature"),
+        null,
+        {
+          topic: topicHeader,
+          shop: shopHeader,
+        }
+      );
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     // Parse the webhook payload
     const webhookData = JSON.parse(body);
-
-    // Log webhook data for debugging
-    console.log("Webhook payload:", JSON.stringify(webhookData, null, 2));
 
     await connectDB();
 
@@ -51,12 +75,23 @@ export async function POST(request) {
         break;
 
       default:
-        console.log(`Unhandled webhook topic: ${topicHeader}`);
+        logBusinessEvent("shopify_webhook_unhandled", null, {
+          topic: topicHeader,
+          shop: shopHeader,
+        });
     }
+
+    logApiSuccess("POST", "/api/shopify/webhooks", 200, null, {
+      topic: topicHeader,
+      shop: shopHeader,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Webhook processing error:", error);
+    logApiError("POST", "/api/shopify/webhooks", 500, error, null, {
+      topic: request.headers.get("x-shopify-topic"),
+      shop: request.headers.get("x-shopify-shop-domain"),
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -70,7 +105,11 @@ async function handleCheckoutWebhook(webhookData, shopDomain) {
 
     // Only process abandoned checkouts
     if (checkout.abandoned_checkout_url) {
-      console.log("Processing abandoned checkout:", checkout.id);
+      logBusinessEvent("shopify_abandoned_checkout", null, {
+        checkoutId: checkout.id,
+        shop: shopDomain,
+        customerEmail: checkout.email,
+      });
 
       // Check if this checkout already exists in our database
       const existingCart = await AbandonedCart.findOne({
@@ -95,7 +134,12 @@ async function handleCheckoutWebhook(webhookData, shopDomain) {
             isActive: true,
           }
         );
-        console.log("Updated existing abandoned cart:", checkout.id);
+
+        logDbOperation("update", "AbandonedCart", null, {
+          checkoutId: checkout.id,
+          shop: shopDomain,
+          action: "update_existing",
+        });
       } else {
         // Create new abandoned cart
         await AbandonedCart.create({
@@ -112,11 +156,19 @@ async function handleCheckoutWebhook(webhookData, shopDomain) {
           lastUpdated: new Date(),
           isActive: true,
         });
-        console.log("Created new abandoned cart:", checkout.id);
+
+        logDbOperation("create", "AbandonedCart", null, {
+          checkoutId: checkout.id,
+          shop: shopDomain,
+          action: "create_new",
+        });
       }
     }
   } catch (error) {
-    console.error("Error handling checkout webhook:", error);
+    logApiError("POST", "/api/shopify/webhooks/checkout", 500, error, null, {
+      checkoutId: webhookData.id,
+      shop: shopDomain,
+    });
     throw error;
   }
 }
@@ -136,10 +188,24 @@ async function handleOrderWebhook(webhookData, shopDomain) {
           lastUpdated: new Date(),
         }
       );
-      console.log("Marked abandoned cart as completed:", order.checkout_id);
+
+      logDbOperation("update", "AbandonedCart", null, {
+        checkoutId: order.checkout_id,
+        shop: shopDomain,
+        action: "mark_completed",
+      });
+
+      logBusinessEvent("shopify_order_completed", null, {
+        orderId: order.id,
+        checkoutId: order.checkout_id,
+        shop: shopDomain,
+      });
     }
   } catch (error) {
-    console.error("Error handling order webhook:", error);
+    logApiError("POST", "/api/shopify/webhooks/order", 500, error, null, {
+      orderId: webhookData.id,
+      shop: shopDomain,
+    });
     throw error;
   }
 }

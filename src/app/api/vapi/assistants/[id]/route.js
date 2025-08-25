@@ -2,20 +2,26 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { VapiClient } from "@vapi-ai/server-sdk";
+import {
+  logApiError,
+  logApiSuccess,
+  logAuthFailure,
+  logExternalApi,
+  logExternalApiError,
+} from "@/lib/apiLogger";
 
 export async function GET(request, { params }) {
   try {
-    console.log("🔍 GET /api/vapi/assistants/[id] - Starting request");
-
     // Get user session
     const session = await getServerSession(authOptions);
-    console.log(
-      "👤 User session:",
-      session?.user?.email ? "Authenticated" : "Not authenticated"
-    );
 
     if (!session?.user?.email) {
-      console.log("❌ Authentication failed");
+      logAuthFailure(
+        "GET",
+        "/api/vapi/assistants/[id]",
+        null,
+        "No session or user email"
+      );
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -23,25 +29,44 @@ export async function GET(request, { params }) {
     }
 
     const { id } = await params;
-    console.log("🆔 Fetching assistant with ID:", id);
 
     // Initialize VAPI client
-    console.log("🔧 Initializing VAPI client...");
     const client = new VapiClient({
       token: process.env.VAPI_API_KEY,
     });
 
     // Fetch assistant from VAPI
-    console.log("📡 Making request to VAPI API...");
+    logExternalApi("VAPI", "get_assistant", session.user, {
+      assistantId: id,
+    });
+
     const assistant = await client.assistants.get(id);
-    console.log("✅ VAPI assistant fetched successfully:", assistant);
+
+    logApiSuccess("GET", "/api/vapi/assistants/[id]", 200, session.user, {
+      assistantId: id,
+      assistantName: assistant.name,
+    });
 
     return NextResponse.json({
       success: true,
       data: assistant,
     });
   } catch (error) {
-    console.error("Error fetching VAPI assistant:", error);
+    logExternalApiError("VAPI", "get_assistant", error, session?.user?.email, {
+      assistantId: params?.id,
+    });
+
+    logApiError(
+      "GET",
+      "/api/vapi/assistants/[id]",
+      500,
+      error,
+      session?.user,
+      {
+        assistantId: params?.id,
+      }
+    );
+
     return NextResponse.json(
       { error: "Failed to fetch assistant" },
       { status: 500 }

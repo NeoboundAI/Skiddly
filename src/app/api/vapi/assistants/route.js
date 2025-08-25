@@ -2,20 +2,26 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { VapiClient } from "@vapi-ai/server-sdk";
+import {
+  logApiError,
+  logApiSuccess,
+  logAuthFailure,
+  logExternalApi,
+  logExternalApiError,
+} from "@/lib/apiLogger";
 
 export async function POST(request) {
   try {
-    console.log("🔧 POST /api/vapi/assistants - Starting request");
-
     // Get user session
     const session = await getServerSession(authOptions);
-    console.log(
-      "👤 User session:",
-      session?.user?.email ? "Authenticated" : "Not authenticated"
-    );
 
     if (!session?.user?.email) {
-      console.log("❌ Authentication failed");
+      logAuthFailure(
+        "POST",
+        "/api/vapi/assistants",
+        null,
+        "No session or user email"
+      );
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -23,7 +29,6 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    console.log("📋 Request body received:", body);
 
     // Clean the body to remove properties that shouldn't exist when creating
     const cleanBody = {
@@ -33,25 +38,52 @@ export async function POST(request) {
       firstMessage: body.firstMessage,
       // Add other valid properties as needed
     };
-    console.log("🧹 Cleaned body for VAPI:", cleanBody);
 
     // Initialize VAPI client
-    console.log("🔧 Initializing VAPI client...");
     const client = new VapiClient({
       token: process.env.VAPI_API_KEY,
     });
 
     // Create assistant in VAPI
-    console.log("📡 Making request to VAPI API to create assistant...");
+    logExternalApi("VAPI", "create_assistant", session.user, {
+      assistantName: cleanBody.name,
+      model: cleanBody.model,
+      voice: cleanBody.voice,
+    });
+
     const assistant = await client.assistants.create(cleanBody);
-    console.log("✅ VAPI assistant created successfully:", assistant);
+
+    logApiSuccess("POST", "/api/vapi/assistants", 200, session.user, {
+      assistantId: assistant.id,
+      assistantName: cleanBody.name,
+    });
 
     return NextResponse.json({
       success: true,
       data: assistant,
     });
   } catch (error) {
-    console.error("Error creating VAPI assistant:", error);
+    logExternalApiError(
+      "VAPI",
+      "create_assistant",
+      error,
+      session?.user?.email,
+      {
+        assistantName: body?.name,
+      }
+    );
+
+    logApiError(
+      "POST",
+      "/api/vapi/assistants",
+      500,
+      error,
+      session?.user,
+      {
+        assistantName: body?.name,
+      }
+    );
+
     return NextResponse.json(
       { error: "Failed to create assistant" },
       { status: 500 }

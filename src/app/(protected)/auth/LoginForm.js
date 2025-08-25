@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TextInput from "@/components/ui/TextInputs";
@@ -64,6 +64,14 @@ const LoginForm = () => {
     }
   };
 
+  // Function to determine redirect path based on user role
+  const getRedirectPath = (userRole) => {
+    if (userRole === "admin" || userRole === "super_admin") {
+      return "/admin/dashboard";
+    }
+    return "/dashboard";
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -101,8 +109,15 @@ const LoginForm = () => {
             );
         }
       } else if (result?.ok) {
-        // Successful sign in - AuthWrapper will handle routing
-        router.push("/dashboard");
+        // Get the session to check user role
+        const session = await getSession();
+        if (session?.user?.role) {
+          const redirectPath = getRedirectPath(session.user.role);
+          router.push(redirectPath);
+        } else {
+          // Fallback to regular dashboard if role is not available
+          router.push("/dashboard");
+        }
       } else {
         setError("Something went wrong. Please try again.");
       }
@@ -126,8 +141,15 @@ const LoginForm = () => {
       if (result?.error) {
         setError("Google sign in failed. Please try again.");
       } else if (result?.ok) {
-        // Google sign in successful - AuthWrapper will handle routing
-        router.push("/dashboard");
+        // Get the session to check user role
+        const session = await getSession();
+        if (session?.user?.role) {
+          const redirectPath = getRedirectPath(session.user.role);
+          router.push(redirectPath);
+        } else {
+          // Fallback to regular dashboard if role is not available
+          router.push("/dashboard");
+        }
       }
     } catch (error) {
       console.error("Google sign in error:", error);

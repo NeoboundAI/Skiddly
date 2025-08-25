@@ -5,6 +5,15 @@ import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import Agent from "@/models/Agent";
 import DefaultAgent from "@/models/DefaultAgent";
+import {
+  logApiError,
+  logApiSuccess,
+  logAuthFailure,
+  logDbOperation,
+  logExternalApi,
+  logExternalApiError,
+  logBusinessEvent,
+} from "@/lib/apiLogger";
 
 export async function POST(request) {
   try {
@@ -12,6 +21,12 @@ export async function POST(request) {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
+      logAuthFailure(
+        "POST",
+        "/api/agents/create-from-template",
+        null,
+        "No session or user email"
+      );
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -24,6 +39,12 @@ export async function POST(request) {
     const user = await User.findOne({ email: session.user.email });
 
     if (!user) {
+      logAuthFailure(
+        "POST",
+        "/api/agents/create-from-template",
+        session.user,
+        "User not found in database"
+      );
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
@@ -31,6 +52,13 @@ export async function POST(request) {
     const { assistantId } = body;
 
     if (!assistantId) {
+      logApiError(
+        "POST",
+        "/api/agents/create-from-template",
+        400,
+        new Error("Assistant ID is required"),
+        session.user
+      );
       return NextResponse.json(
         { error: "Assistant ID is required" },
         { status: 400 }
@@ -44,15 +72,40 @@ export async function POST(request) {
     });
 
     if (!defaultAgent) {
+      logApiError(
+        "POST",
+        "/api/agents/create-from-template",
+        404,
+        new Error("Default agent template not found"),
+        session.user,
+        {
+          assistantId,
+        }
+      );
       return NextResponse.json(
         { error: "Default agent template not found" },
         { status: 404 }
       );
     }
 
+    logDbOperation("read", "DefaultAgent", session.user, {
+      assistantId,
+      templateName: defaultAgent.name,
+      templateType: defaultAgent.type,
+    });
+
     // Fetch VAPI agent configuration from VAPI API
     let vapiConfiguration = null;
     try {
+      logExternalApi(
+        "VAPI",
+        "fetch_assistant_configuration",
+        user._id.toString(),
+        {
+          assistantId,
+        }
+      );
+
       const vapiResponse = await fetch(
         `https://api.vapi.ai/assistant/${assistantId}`,
         {
@@ -78,15 +131,42 @@ export async function POST(request) {
           transcriber: vapiAgent.transcriber,
           isServerUrlSecretSet: vapiAgent.isServerUrlSecretSet,
         };
+
+        logBusinessEvent(
+          "vapi_assistant_configuration_fetched",
+          session.user,
+          {
+            assistantId,
+            voice: vapiAgent.voice,
+            model: vapiAgent.model.model,
+          }
+        );
       } else {
-        console.error("Failed to fetch VAPI agent:", vapiResponse.status);
+        logExternalApiError(
+          "VAPI",
+          "fetch_assistant_configuration",
+          new Error(`Failed to fetch VAPI agent: ${vapiResponse.status}`),
+          user._id.toString(),
+          {
+            assistantId,
+            status: vapiResponse.status,
+          }
+        );
         return NextResponse.json(
           { error: "Failed to fetch VAPI agent configuration" },
           { status: 500 }
         );
       }
     } catch (error) {
-      console.error("Error fetching VAPI agent:", error);
+      logExternalApiError(
+        "VAPI",
+        "fetch_assistant_configuration",
+        error,
+        user._id.toString(),
+        {
+          assistantId,
+        }
+      );
       return NextResponse.json(
         { error: "Failed to fetch VAPI agent configuration" },
         { status: 500 }
@@ -109,12 +189,48 @@ export async function POST(request) {
 
     await agent.save();
 
+    logDbOperation("create", "Agent", session.user, {
+      agentId: agent._id.toString(),
+      assistantId: defaultAgent.assistantId,
+      name: defaultAgent.name,
+      type: defaultAgent.type,
+      status: "draft",
+    });
+
+    logBusinessEvent("agent_created_from_template", session.user, {
+      agentId: agent._id.toString(),
+      templateName: defaultAgent.name,
+      templateType: defaultAgent.type,
+      assistantId: defaultAgent.assistantId,
+    });
+
+    logApiSuccess(
+      "POST",
+      "/api/agents/create-from-template",
+      200,
+      session.user,
+      {
+        agentId: agent._id.toString(),
+        name: defaultAgent.name,
+        type: defaultAgent.type,
+      }
+    );
+
     return NextResponse.json({
       success: true,
       data: agent,
     });
   } catch (error) {
-    console.error("Error creating agent from template:", error);
+    logApiError(
+      "POST",
+      "/api/agents/create-from-template",
+      500,
+      error,
+      session?.user?.id,
+      {
+        assistantId: request.body?.assistantId,
+      }
+    );
     return NextResponse.json(
       { error: "Failed to create agent from template" },
       { status: 500 }

@@ -2,14 +2,17 @@
   "name": "skiddly.ai",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:agents": "node src/scripts/seed-default-agents.js"
+    "seed:agents": "node src/scripts/seed-default-agents.js",
+    "seed:admin": "node src/scripts/seed-default-admin.js"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.5.0",
     "@tailwindcss/postcss": "^4.1.12",
     "@tanstack/react-query": "^5.85.3",
     "@vapi-ai/server-sdk": "^0.10.0",
@@ -28,6 +31,7 @@
     "twilio": "^5.8.0",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
+    "winston-transport-sentry-node": "^1.0.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

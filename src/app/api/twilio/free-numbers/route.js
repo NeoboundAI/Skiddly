@@ -5,6 +5,7 @@ import {
   serverErrorResponse,
   successResponse,
 } from "@/app/api/handlers/apiResponses";
+import { logApiError, logApiSuccess, logDbOperation } from "@/lib/apiLogger";
 
 export async function GET(req) {
   try {
@@ -28,14 +29,22 @@ export async function GET(req) {
       status_callback: 1,
     });
 
-    console.log(`Found ${availableNumbers.length} available default numbers`);
+    logDbOperation("read", "DefaultNumber", null, {
+      operation: "fetch_available_free_numbers",
+      count: availableNumbers.length,
+      filter: "isActive=true, vapiStatus=active",
+    });
+
+    logApiSuccess("GET", "/api/twilio/free-numbers", 200, null, {
+      numberCount: availableNumbers.length,
+    });
 
     return NextResponse.json({
       success: true,
       numbers: availableNumbers,
     });
   } catch (error) {
-    console.error("Error fetching free numbers:", error);
+    logApiError("GET", "/api/twilio/free-numbers", 500, error, null);
     return serverErrorResponse("Failed to fetch available numbers");
   }
 }
