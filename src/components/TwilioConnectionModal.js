@@ -81,7 +81,7 @@ const TwilioConnectionModal = ({ isOpen, onClose, onConnect }) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          phoneNumber: selectedNumber.phoneNumber,
+          phoneNumber: selectedNumber.phone_number,
           sid: selectedNumber.sid,
         }),
       });
@@ -110,11 +110,7 @@ const TwilioConnectionModal = ({ isOpen, onClose, onConnect }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <img
-              src="/twilio.svg"
-              alt="Twilio"
-              className="w-8 h-8"
-            />
+            <img src="/twilio.svg" alt="Twilio" className="w-8 h-8" />
             <h2 className="text-xl font-semibold text-gray-900">
               Connect Twilio
             </h2>
@@ -287,10 +283,10 @@ const TwilioConnectionModal = ({ isOpen, onClose, onConnect }) => {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-medium text-gray-900">
-                              {number.friendlyName}
+                              {number.phone_number}
                             </p>
                             <p className="text-sm text-gray-600">
-                              {number.phoneNumber}
+                              {number.friendly_name || number.sid}
                             </p>
                           </div>
                           <div className="text-right">

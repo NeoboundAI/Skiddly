@@ -32,24 +32,63 @@ export const importTwilioNumberToVapi = async ({ sid, token, phoneNumber }) => {
       token: process.env.VAPI_API_KEY,
     });
 
-    const response = await vapiClient.phoneNumbers.create({
-      provider: "twilio",
-      number: phoneNumber,
-      twilioAccountSid: sid,
-      twilioAuthToken: token,
-    });
-    console.log("response", response);
+    // First, try to create the phone number
+    try {
+      const response = await vapiClient.phoneNumbers.create({
+        provider: "twilio",
+        number: phoneNumber,
+        twilioAccountSid: sid,
+        twilioAuthToken: token,
+      });
 
-    console.log(`Successfully attached ${phoneNumber} to VAPI`);
-    return {
-      success: true,
-      vapiData: {
-        vapiNumberId: response.id,
-        orgId: response.orgId,
-        twilioAccountSid: response.twilioAccountSid,
-        status: response.status,
-      },
-    };
+      console.log(`Successfully attached ${phoneNumber} to VAPI`);
+      return {
+        success: true,
+        vapiData: {
+          vapiNumberId: response.id,
+          orgId: response.orgId,
+          twilioAccountSid: response.twilioAccountSid,
+          status: response.status,
+        },
+      };
+    } catch (createError) {
+      // If creation fails, check if it's because the number already exists
+      if (
+        createError.statusCode === 400 &&
+        createError.body?.message?.includes("Existing Phone Number")
+      ) {
+        console.log(
+          `Phone number ${phoneNumber} already exists in VAPI, fetching existing details...`
+        );
+
+        // Fetch existing phone numbers to find the matching one
+        const existingNumbers = await vapiClient.phoneNumbers.list();
+        const existingNumber = existingNumbers.find(
+          (num) => num.number === phoneNumber && num.twilioAccountSid === sid
+        );
+
+        if (existingNumber) {
+          console.log(`Found existing VAPI number: ${existingNumber.id}`);
+          return {
+            success: true,
+            vapiData: {
+              vapiNumberId: existingNumber.id,
+              orgId: existingNumber.orgId,
+              twilioAccountSid: existingNumber.twilioAccountSid,
+              status: existingNumber.status,
+            },
+          };
+        } else {
+          console.error(
+            `Phone number ${phoneNumber} exists but couldn't be found in VAPI list`
+          );
+          return { success: false };
+        }
+      } else {
+        // If it's a different error, throw it
+        throw createError;
+      }
+    }
   } catch (vapiError) {
     console.error("VAPI Error:", vapiError);
     return { success: false };
