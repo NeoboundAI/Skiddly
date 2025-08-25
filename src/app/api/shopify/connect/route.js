@@ -15,7 +15,7 @@ import {
 } from "@/lib/apiLogger";
 
 export async function POST(request) {
-u  let session;
+ let session;
 
   try {
     session = await getServerSession(authOptions);
