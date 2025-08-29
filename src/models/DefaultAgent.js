@@ -31,113 +31,126 @@ const defaultAgentSchema = new mongoose.Schema(
       type: String,
       required: true, // VAPI assistant ID to fetch configuration from
     },
-    // Default configuration template
+
+    // Default configuration template for 7-step wizard
     defaultConfiguration: {
-      language: {
-        type: String,
-        default: "en-US",
-      },
-      voiceStyle: {
-        type: String,
-        default: "professional-female",
-      },
-      greeting: {
-        type: String,
-        default: "standard",
-      },
-      returnPolicy: {
-        type: String,
-        default: "30 days",
-      },
-      callTriggers: {
-        abandonedCart: {
-          type: Boolean,
-          default: true,
+      type: Object,
+      default: {
+        // Step 1: Store Profile defaults
+        storeProfile: {
+          storeName: "Your Store Name",
+          storeUrl: "your-store.myshopify.com",
+          tagline: "Your store tagline",
+          supportEmail: "support@yourstore.com",
+          phoneNumber: "+1 (555) 123-4567",
+          businessAddress: "123 Business St, City, State, ZIP",
+          businessHours: "Mon-Fri, 9am-6pm",
+          supportChannels: "Email, Chat, Phone",
+          storeDescription: "Tell customers what makes your store special...",
+          storeCategory: "Select a category",
+          fulfillmentMethod: "shipping",
         },
-        waitTime: {
-          type: String,
-          default: "2",
+
+        // Step 2: Commerce Settings defaults
+        commerceSettings: {
+          expressProviders: ["shop-pay", "paypal", "google-pay", "apple-pay"],
+          paymentsAccepted: "Visa, Mastercard, Amex",
+          bnplProviders: "Klarna, Afterpay",
+          guestCheckoutEnabled: true,
+          discountsNotes: "Student verified via SheerID.",
+          discountTypes: [
+            "military",
+            "student",
+            "first-responder",
+            "newsletter",
+          ],
+          additionalNotes:
+            "Apple Pay shows on Safari/iOS; Venmo via PayPal on mobile (US).",
         },
-        waitTimeUnit: {
-          type: String,
-          default: "hours",
+
+        // Step 3: Call Logic defaults
+        callLogic: {
+          conditions: [
+            {
+              type: "cart-value",
+              operator: ">=",
+              value: "50",
+              enabled: true,
+            },
+            {
+              type: "customer-type",
+              operator: "is",
+              value: "new",
+              enabled: true,
+            },
+          ],
+          callSchedule: {
+            waitTime: "2",
+            waitTimeUnit: "hours",
+            maxRetries: "3",
+            retryInterval: "24",
+            retryIntervalUnit: "hours",
+            weekendCalling: false,
+            callTimeStart: "09:00",
+            callTimeEnd: "18:00",
+            timezone: "America/New_York",
+            respectDND: true,
+            voicemailDetection: true,
+          },
         },
-      },
-      callSettings: {
-        maxRetries: {
-          type: String,
-          default: "3",
+
+        // Step 4: Offer Engine defaults
+        offerEngine: {
+          shopifyDiscountCodes: [],
+          primaryDiscountCode: "SAVE15",
+          primaryDiscountValue: "15",
+          offerShippingDiscount: true,
+          shippingDiscountText: "Free shipping on orders over $50",
+          offerPaymentPlans: true,
+          returnPolicy: "30 days return",
         },
-        retryInterval: {
-          type: String,
-          default: "24",
+
+        // Step 5: Agent Persona defaults
+        agentPersona: {
+          agentName: "Sarah",
+          language: "English (US)",
+          voiceStyle: "sarah-professional-female",
+          greetingStyle: "standard",
+          customGreeting: "",
         },
-        retryIntervalUnit: {
-          type: String,
-          default: "hours",
+
+        // Step 6: Objection Handling defaults
+        objectionHandling: {
+          shipping: true,
+          price: true,
+          size: true,
+          payment: true,
+          technical: true,
+          comparison: true,
+          forgot: true,
+          shippingResponse:
+            "We offer fast and reliable shipping with tracking.",
+          priceResponse:
+            "We have competitive pricing and often run special promotions.",
+          sizeResponse:
+            "We offer a wide range of sizes and easy returns if needed.",
+          paymentResponse:
+            "We accept all major credit cards and offer secure checkout.",
+          technicalResponse:
+            "Our customer support team is here to help with any issues.",
+          comparisonResponse:
+            "We're confident you'll find our quality and service exceptional.",
+          forgotResponse:
+            "No problem! I can help you complete your purchase quickly.",
         },
-        weekendCalling: {
-          type: Boolean,
-          default: false,
+
+        // Step 7: Launch & Test defaults
+        launchTest: {
+          testCallsCompleted: 0,
+          validationStatus: "pending",
+          deploymentStatus: "draft",
+          testResults: [],
         },
-        callTimeStart: {
-          type: String,
-          default: "09:00",
-        },
-        callTimeEnd: {
-          type: String,
-          default: "18:00",
-        },
-        timezone: {
-          type: String,
-          default: "America/New_York",
-        },
-        respectDND: {
-          type: Boolean,
-          default: true,
-        },
-        voicemailDetection: {
-          type: Boolean,
-          default: true,
-        },
-      },
-      objectionHandling: {
-        shipping: {
-          type: Boolean,
-          default: true,
-        },
-        price: {
-          type: Boolean,
-          default: true,
-        },
-        size: {
-          type: Boolean,
-          default: true,
-        },
-        payment: {
-          type: Boolean,
-          default: true,
-        },
-        technical: {
-          type: Boolean,
-          default: true,
-        },
-        comparison: {
-          type: Boolean,
-          default: true,
-        },
-        forgot: {
-          type: Boolean,
-          default: true,
-        },
-      },
-      enableSmartEscalation: {
-        type: Boolean,
-        default: false,
-      },
-      enableFollowUp: {
-        type: Boolean,
-        default: false,
       },
     },
   },

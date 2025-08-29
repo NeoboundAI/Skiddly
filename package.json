@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:agents": "node src/scripts/seed-default-agents.js",
+    "seed:agents": "node scripts/seed-default-agents.js",
     "seed:admin": "node src/scripts/seed-default-admin.js"
   },
   "dependencies": {

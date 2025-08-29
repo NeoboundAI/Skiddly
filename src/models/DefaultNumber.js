@@ -131,7 +131,7 @@ const defaultNumberSchema = new mongoose.Schema(
       default: "https://api.vapi.ai/twilio/inbound_call",
     },
 
-    // Status callback configuration
+
     status_callback: {
       type: String,
       default: "https://api.vapi.ai/twilio/status",
@@ -141,7 +141,7 @@ const defaultNumberSchema = new mongoose.Schema(
       default: "POST",
     },
 
-    // URI fields
+
     uri: {
       type: String,
       required: true,
@@ -151,7 +151,7 @@ const defaultNumberSchema = new mongoose.Schema(
       default: {},
     },
 
-    // Timestamps
+  
     date_created: {
       type: String,
       required: true,
@@ -161,7 +161,7 @@ const defaultNumberSchema = new mongoose.Schema(
       required: true,
     },
 
-    // VAPI Integration fields
+   
     vapiNumberId: {
       type: String,
       required: true,
@@ -176,7 +176,7 @@ const defaultNumberSchema = new mongoose.Schema(
       default: "active",
     },
 
-    // Shared number tracking (optional - for analytics)
+   
     totalAssignments: {
       type: Number,
       default: 0,
@@ -191,9 +191,8 @@ const defaultNumberSchema = new mongoose.Schema(
   }
 );
 
-// Index for efficient queries
+
 defaultNumberSchema.index({ isActive: 1, vapiStatus: 1 });
-defaultNumberSchema.index({ phone_number: 1 });
 
 const DefaultNumber =
   mongoose.models.DefaultNumber ||

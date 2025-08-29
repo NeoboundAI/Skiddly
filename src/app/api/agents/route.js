@@ -40,15 +40,33 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { vapiAgentId, name, type, configuration, shopifyShopId } = body;
+    const {
+      vapiAgentId,
+      name,
+      type,
+      storeProfile,
+      commerceSettings,
+      callLogic,
+      offerEngine,
+      agentPersona,
+      objectionHandling,
+      launchTest,
+      shopifyShopId,
+    } = body;
 
-    // Create new agent
+    // Create new agent with 7-step wizard structure
     const agent = new Agent({
       userId: user._id,
       vapiAgentId,
       name,
       type,
-      configuration,
+      storeProfile,
+      commerceSettings,
+      callLogic,
+      offerEngine,
+      agentPersona,
+      objectionHandling,
+      launchTest,
       shopifyShopId,
     });
 

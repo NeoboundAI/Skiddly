@@ -8,6 +8,37 @@ import { FiPlus, FiSettings, FiPhone, FiUser } from "react-icons/fi";
 import axios from "axios";
 import useShopStore from "@/stores/shopStore";
 
+const AGENT_TYPE_LABELS = {
+  "abandoned-cart": "Outbound",
+  "customer-support": "Inbound",
+};
+
+const AGENT_TYPE_DESC = {
+  "abandoned-cart":
+    "Calls leads who have abandoned their cart as per your instructions.",
+  "customer-support":
+    "Supports customers with their queries and provides support to them.",
+};
+
+const AGENT_TYPE_COLOR = {
+  "abandoned-cart": "bg-green-100 text-green-800",
+  "customer-support": "bg-blue-100 text-blue-800",
+  default: "bg-gray-100 text-gray-800",
+};
+
+const AGENT_STATUS_LABELS = {
+  active: "Live",
+  draft: "Draft",
+  inactive: "Inactive",
+};
+
+const AGENT_STATUS_COLOR = {
+  active: "bg-green-100 text-green-800",
+  draft: "bg-yellow-100 text-yellow-800",
+  inactive: "bg-gray-100 text-gray-800",
+  default: "bg-gray-100 text-gray-800",
+};
+
 const AgentPage = () => {
   const router = useRouter();
   const { selectedShop } = useShopStore();
@@ -36,7 +67,9 @@ const AgentPage = () => {
         // Filter agents by the currently selected shop
         // shopifyShopId is a populated object, so we need to compare _id
         const filteredAgents = response.data.data.filter(
-          (agent) => agent.shopifyShopId?._id === selectedShop._id
+          (agent) =>
+            !agent.shopifyShopId ||
+            agent.shopifyShopId?._id === selectedShop._id
         );
         setAgents(filteredAgents);
       } else {
@@ -67,9 +100,38 @@ const AgentPage = () => {
     }
   };
 
-  const getAgentAvatar = (agentName) => {
-    // Generate avatar based on agent name
-    const initials = agentName
+  const getAgentAvatar = (agent) => {
+    // If agentPersona exists and has a voiceStyle, show avatar image, else initials
+    if (
+      agent.agentPersona &&
+      agent.agentPersona.voiceStyle &&
+      agent.agentPersona.voiceStyle.includes("female")
+    ) {
+      // Use a placeholder female avatar
+      return (
+        <img
+          src="/avatar-female.png"
+          alt={agent.agentPersona.agentName || agent.name}
+          className="w-12 h-12 rounded-full object-cover"
+        />
+      );
+    }
+    if (
+      agent.agentPersona &&
+      agent.agentPersona.voiceStyle &&
+      agent.agentPersona.voiceStyle.includes("male")
+    ) {
+      // Use a placeholder male avatar
+      return (
+        <img
+          src="/avatar-male.png"
+          alt={agent.agentPersona.agentName || agent.name}
+          className="w-12 h-12 rounded-full object-cover"
+        />
+      );
+    }
+    // Fallback: initials
+    const initials = (agent.agentPersona?.agentName || agent.name || "")
       .split(" ")
       .map((word) => word[0])
       .join("")

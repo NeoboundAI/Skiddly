@@ -132,15 +132,11 @@ export async function POST(request) {
           isServerUrlSecretSet: vapiAgent.isServerUrlSecretSet,
         };
 
-        logBusinessEvent(
-          "vapi_assistant_configuration_fetched",
-          session.user,
-          {
-            assistantId,
-            voice: vapiAgent.voice,
-            model: vapiAgent.model.model,
-          }
-        );
+        logBusinessEvent("vapi_assistant_configuration_fetched", session.user, {
+          assistantId,
+          voice: vapiAgent.voice,
+          model: vapiAgent.model.model,
+        });
       } else {
         logExternalApiError(
           "VAPI",
@@ -180,10 +176,8 @@ export async function POST(request) {
       name: defaultAgent.name,
       type: defaultAgent.type,
       status: "draft", // Start as draft
-      configuration: {
-        ...defaultAgent.defaultConfiguration,
-        // Add any user-specific overrides here if needed
-      },
+      // Spread the default configuration directly into the agent fields
+      ...defaultAgent.defaultConfiguration,
       vapiConfiguration: vapiConfiguration, // Store the fetched VAPI configuration
     });
 
