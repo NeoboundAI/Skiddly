@@ -66,6 +66,8 @@ export async function POST(request) {
     // Handle different webhook topics
     switch (topicHeader) {
       case "checkouts/create":
+        await handleCheckoutCreateWebhook(webhookData, shopHeader);
+        break;
       case "checkouts/update":
         await handleCheckoutWebhook(webhookData, shopHeader);
         break;
@@ -99,17 +101,18 @@ export async function POST(request) {
   }
 }
 
-async function handleCheckoutWebhook(webhookData, shopDomain) {
+async function handleCheckoutCreateWebhook(webhookData, shopDomain) {
   try {
     const checkout = webhookData;
 
     // Only process abandoned checkouts
     if (checkout.abandoned_checkout_url) {
-      logBusinessEvent("shopify_abandoned_checkout", null, {
+      logBusinessEvent("shopify_create_checkout", null, {
         checkoutId: checkout.id,
         shop: shopDomain,
-        customerEmail: checkout.email,
+        customerEmail: checkout.email ||"a@gmail.com",
       });
+      console.log("checkout", checkout);
 
       // Check if this checkout already exists in our database
       const existingCart = await AbandonedCart.findOne({
@@ -122,7 +125,81 @@ async function handleCheckoutWebhook(webhookData, shopDomain) {
           { shopifyCheckoutId: checkout.id.toString() },
           {
             shopDomain,
-            customerEmail: checkout.email,
+            customerEmail: checkout.email ||"a@gmail.com",
+            customerPhone: checkout.phone,
+            customerFirstName: checkout.customer?.first_name,
+            customerLastName: checkout.customer?.last_name,
+            totalPrice: checkout.total_price,
+            currency: checkout.currency,
+            lineItems: checkout.line_items || [],
+            abandonedAt: new Date(checkout.updated_at),
+            lastUpdated: new Date(),
+            isActive: true,
+          }
+        );
+
+        logDbOperation("update", "Create Checkout", null, {
+          checkoutId: checkout.id,
+          shop: shopDomain,
+          action: "update_existing",
+        });
+      } else {
+        // Create new abandoned cart
+        await AbandonedCart.create({
+          shopifyCheckoutId: checkout.id.toString(),
+          shopDomain,
+          customerEmail: checkout.email||"a@gmail.com",
+          customerPhone: checkout.phone,
+          customerFirstName: checkout.customer?.first_name,
+          customerLastName: checkout.customer?.last_name,
+          totalPrice: checkout.total_price,
+          currency: checkout.currency,
+          lineItems: checkout.line_items || [],
+          abandonedAt: new Date(checkout.updated_at),
+          lastUpdated: new Date(),
+          isActive: true,
+        });
+
+        logDbOperation("create", "Create Checkout", null, {
+          checkoutId: checkout.id,
+          shop: shopDomain,
+          action: "create_new",
+        });
+      }
+    }
+  } catch (error) {
+    logApiError("POST", "/api/shopify/webhooks/checkout", 500, error, null, {
+      checkoutId: webhookData.id,
+      shop: shopDomain,
+    });
+    throw error;
+  }
+}
+async function handleCheckoutWebhook(webhookData, shopDomain) {
+  try {
+    const checkout = webhookData;
+
+    // Only process abandoned checkouts
+    if (checkout.abandoned_checkout_url) {
+      logBusinessEvent("shopify_abandoned_checkout", null, {
+        checkoutId: checkout.id,
+        shop: shopDomain,
+        customerEmail: checkout.email ||"a@gmail.com",
+      });
+      console.log("checkout", checkout);
+
+      // Check if this checkout already exists in our database
+      const existingCart = await AbandonedCart.findOne({
+        shopifyCheckoutId: checkout.id.toString(),
+      });
+
+      if (existingCart) {
+        // Update existing cart
+        await AbandonedCart.findOneAndUpdate(
+          { shopifyCheckoutId: checkout.id.toString() },
+          {
+            shopDomain,
+            customerEmail: checkout.email ||"a@gmail.com",
             customerPhone: checkout.phone,
             customerFirstName: checkout.customer?.first_name,
             customerLastName: checkout.customer?.last_name,
@@ -145,7 +222,7 @@ async function handleCheckoutWebhook(webhookData, shopDomain) {
         await AbandonedCart.create({
           shopifyCheckoutId: checkout.id.toString(),
           shopDomain,
-          customerEmail: checkout.email,
+          customerEmail: checkout.email||"a@gmail.com",
           customerPhone: checkout.phone,
           customerFirstName: checkout.customer?.first_name,
           customerLastName: checkout.customer?.last_name,
@@ -189,7 +266,7 @@ async function handleOrderWebhook(webhookData, shopDomain) {
         }
       );
 
-      logDbOperation("update", "AbandonedCart", null, {
+      logDbOperation("update", "OrderCart", null, {
         checkoutId: order.checkout_id,
         shop: shopDomain,
         action: "mark_completed",

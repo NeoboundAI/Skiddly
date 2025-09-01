@@ -20,7 +20,7 @@ const AbandonedCartSchema = new mongoose.Schema(
     // Customer information
     customerEmail: {
       type: String,
-      required: true,
+     
       index: true,
     },
 
