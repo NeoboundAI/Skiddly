@@ -111,6 +111,11 @@ export const logApiError = (
     errorCode: errorInfo.code,
     fileName: errorInfo.fileName,
     lineNumber: errorInfo.lineNumber,
+    // Include full error object for development
+    fullError: process.env.NODE_ENV !== "production" ? error : undefined,
+    // Include request details for debugging
+    requestUrl: process.env.NODE_ENV !== "production" ? path : undefined,
+    requestMethod: process.env.NODE_ENV !== "production" ? method : undefined,
     ...metadata,
   });
 };
@@ -231,6 +236,8 @@ export const logExternalApiError = (
     stack: errorInfo.stack,
     errorName: errorInfo.name,
     errorCode: errorInfo.code,
+    // Include full error object for development
+    fullError: process.env.NODE_ENV !== "production" ? error : undefined,
     ...metadata,
   });
 };

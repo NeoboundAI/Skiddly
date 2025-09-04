@@ -37,13 +37,53 @@ const baseFormat = winston.format.combine(
   winston.format.json()
 );
 
-// Define console format for development with level visibility
+// Define console format for development with enhanced error details
 const consoleFormat = winston.format.combine(
   winston.format.colorize({ all: true }),
   winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss:ms" }),
-  winston.format.printf(
-    (info) => `${info.timestamp} [${info.level.toUpperCase()}]: ${info.message}`
-  )
+  winston.format.errors({ stack: true }),
+  winston.format.printf((info) => {
+    let logMessage = `${info.timestamp} [${info.level.toUpperCase()}]: ${
+      info.message
+    }`;
+
+    // Add metadata for development debugging
+    if (info.metadata && Object.keys(info.metadata).length > 0) {
+      logMessage += `\n  Metadata: ${JSON.stringify(info.metadata, null, 2)}`;
+    }
+
+    // Add full error details for errors
+    if (info.level === "error") {
+      if (info.error) {
+        logMessage += `\n  Error: ${info.error}`;
+      }
+      if (info.stack) {
+        logMessage += `\n  Stack: ${info.stack}`;
+      }
+      if (info.errorName) {
+        logMessage += `\n  Error Name: ${info.errorName}`;
+      }
+      if (info.errorCode) {
+        logMessage += `\n  Error Code: ${info.errorCode}`;
+      }
+      if (info.fileName) {
+        logMessage += `\n  File: ${info.fileName}`;
+      }
+      if (info.lineNumber) {
+        logMessage += `\n  Line: ${info.lineNumber}`;
+      }
+      // Show full error object in development
+      if (info.fullError && process.env.NODE_ENV !== "production") {
+        logMessage += `\n  Full Error Object: ${JSON.stringify(
+          info.fullError,
+          null,
+          2
+        )}`;
+      }
+    }
+
+    return logMessage;
+  })
 );
 
 // Create the logger
@@ -56,11 +96,13 @@ const logger = winston.createLogger({
 
 // Add transports based on environment
 if (process.env.NODE_ENV !== "production") {
-  // Development: Console transport + File transport for debugging
+  // Development: Enhanced console transport for detailed debugging
   logger.add(
     new winston.transports.Console({
       format: consoleFormat,
       level: "debug",
+      handleExceptions: true,
+      handleRejections: true,
     })
   );
   // Add file transport for development as well

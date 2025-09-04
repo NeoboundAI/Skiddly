@@ -37,11 +37,23 @@ const AgentWizard = ({ agent, selectedShop, onSave, agentId }) => {
       supportEmail: agent?.storeProfile?.supportEmail || "",
       phoneNumber: agent?.storeProfile?.phoneNumber || "",
       businessAddress: agent?.storeProfile?.businessAddress || "",
-      businessHours: agent?.storeProfile?.businessHours || "",
-      supportChannels: agent?.storeProfile?.supportChannels || "",
+      businessHours: agent?.storeProfile?.businessHours || {
+        monday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+        tuesday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+        wednesday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+        thursday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+        friday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+        saturday: { isOpen: false, startTime: "09:00", endTime: "18:00" },
+        sunday: { isOpen: false, startTime: "09:00", endTime: "18:00" },
+      },
+      supportChannels: agent?.storeProfile?.supportChannels || [
+        "Email",
+        "Phone",
+        "Chat",
+      ],
       storeDescription: agent?.storeProfile?.storeDescription || "",
       storeCategory: agent?.storeProfile?.storeCategory || "",
-      fulfillmentMethod: agent?.storeProfile?.fulfillmentMethod || "shipping",
+      fulfillmentMethod: agent?.storeProfile?.fulfillmentMethod || ["shipping"],
     },
 
     // Step 2: Commerce Settings
@@ -158,12 +170,25 @@ const AgentWizard = ({ agent, selectedShop, onSave, agentId }) => {
           supportEmail: agent.storeProfile?.supportEmail || "",
           phoneNumber: agent.storeProfile?.phoneNumber || "",
           businessAddress: agent.storeProfile?.businessAddress || "",
-          businessHours: agent.storeProfile?.businessHours || "",
-          supportChannels: agent.storeProfile?.supportChannels || "",
+          businessHours: agent.storeProfile?.businessHours || {
+            monday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            tuesday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            wednesday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            thursday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            friday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            saturday: { isOpen: false, startTime: "09:00", endTime: "18:00" },
+            sunday: { isOpen: false, startTime: "09:00", endTime: "18:00" },
+          },
+          supportChannels: agent.storeProfile?.supportChannels || [
+            "Email",
+            "Phone",
+            "Chat",
+          ],
           storeDescription: agent.storeProfile?.storeDescription || "",
           storeCategory: agent.storeProfile?.storeCategory || "",
-          fulfillmentMethod:
-            agent.storeProfile?.fulfillmentMethod || "shipping",
+          fulfillmentMethod: agent.storeProfile?.fulfillmentMethod || [
+            "shipping",
+          ],
         },
 
         // Step 2: Commerce Settings
@@ -333,6 +358,7 @@ const AgentWizard = ({ agent, selectedShop, onSave, agentId }) => {
           <StoreProfileStep
             config={agentConfig.storeProfile}
             onUpdate={(data) => updateConfig("storeProfile", data)}
+            selectedShop={selectedShop}
           />
         );
       case 2:
@@ -385,75 +411,139 @@ const AgentWizard = ({ agent, selectedShop, onSave, agentId }) => {
   };
 
   return (
-    <div className="flex h-full">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-50 p-3 border-r border-gray-200">
-        <div className="space-y-3">
-          {steps.map((step) => {
-            const Icon = step.icon;
-            const isActive = currentStep === step.id;
-            const isCompleted = currentStep > step.id;
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex-shrink-0 flex w-full justify-between items-center border-b border-[#EAECF0] pb-4 p-6 ">
+        <div>
+          <h1 className="text-xl font-semibold text-[#000000]">
+            {steps[currentStep - 1]?.name || "Configure Agent"}
+          </h1>
+          <p className="text-xs text-gray-600 mt-1">
+            {steps[currentStep - 1]?.name === "Store Profile"
+              ? "Capture store name, address, type, operating hours, shipping methods."
+              : "Configure your agent settings"}
+          </p>
+        </div>
 
-            return (
-              <div
-                key={step.id}
-                className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-colors ${
-                  isActive
-                    ? "bg-purple-100 text-purple-700 border border-purple-200"
-                    : isCompleted
-                    ? "bg-green-50 text-green-700"
-                    : "text-gray-600 hover:bg-gray-100"
+        <div className="flex items-center space-x-4">
+          {/* Live Toggle */}
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-medium text-gray-700">Live</span>
+            <button
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                agent?.status === "active" ? "bg-purple-600" : "bg-gray-200"
+              }`}
+              onClick={() => {
+                // Toggle live status
+                const newStatus =
+                  agent?.status === "active" ? "draft" : "active";
+                // You can add API call here to update agent status
+              }}
+            >
+              <span
+                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                  agent?.status === "active" ? "translate-x-5" : "translate-x-1"
                 }`}
-                onClick={() => setCurrentStep(step.id)}
-              >
-                <div
-                  className={`flex items-center justify-center w-6 h-6 rounded-full ${
-                    isActive
-                      ? "bg-purple-600 text-white"
-                      : isCompleted
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-300 text-gray-600"
-                  }`}
-                >
-                  {isCompleted ? (
-                    <FiCheckCircle className="w-3 h-3" />
-                  ) : (
-                    <Icon className="w-3 h-3" />
-                  )}
-                </div>
-                <span className="font-medium text-xs">{step.name}</span>
-              </div>
-            );
-          })}
+              />
+            </button>
+          </div>
+
+          {/* Save Changes Button */}
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
+            {loading ? "Saving..." : "Save Changes"}
+          </button>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-3">{renderStep()}</div>
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* Sidebar */}
+        <div className="w-64 bg-gray-50 p-3 border-r border-gray-200 flex flex-col">
+          <div className="space-y-1">
+            {steps.map((step) => {
+              const Icon = step.icon;
+              const isActive = currentStep === step.id;
+              const isCompleted = currentStep > step.id;
 
-        {/* Navigation */}
-        <div className="border-t border-gray-200 p-3 bg-white">
-          <div className="flex justify-between">
-            <button
-              onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-              disabled={currentStep === 1}
-              className="flex items-center space-x-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <FiChevronLeft className="w-4 h-4" />
-              <span className="text-xs">Previous</span>
-            </button>
-
-            <div className="flex space-x-3">
-              {currentStep < 7 && (
-                <button
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  className="flex items-center space-x-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              return (
+                <div
+                  key={step.id}
+                  className={`flex items-center space-x-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                    isActive
+                      ? "bg-purple-100 text-purple-700 border border-purple-200"
+                      : isCompleted
+                      ? "bg-green-50 text-green-700"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                  onClick={() => setCurrentStep(step.id)}
                 >
-                  <span className="text-xs">Next Step</span>
-                  <FiChevronRight className="w-4 h-4" />
-                </button>
-              )}
+                  <div
+                    className={`flex items-center justify-center w-5 h-5 rounded-full ${
+                      isActive
+                        ? "bg-purple-600 text-white"
+                        : isCompleted
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-300 text-gray-600"
+                    }`}
+                  >
+                    {isCompleted ? (
+                      <FiCheckCircle className="w-2.5 h-2.5" />
+                    ) : (
+                      <Icon className="w-2.5 h-2.5" />
+                    )}
+                  </div>
+                  <span className="font-medium text-xs">{step.name}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Help Section */}
+          <div className="mt-auto pt-3 border-t border-gray-200">
+            <div className="flex items-center space-x-2 text-gray-600">
+              <div className="w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
+                <span className="text-xs">?</span>
+              </div>
+              <span className="text-xs">Need help?</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              If you're feeling stuck, you can book a call with us.
+            </p>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto p-6 min-h-0">
+            {renderStep()}
+          </div>
+
+          {/* Navigation */}
+          <div className="flex-shrink-0 border-t border-gray-200 p-3 bg-white">
+            <div className="flex justify-between">
+              <button
+                onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+                disabled={currentStep === 1}
+                className="flex items-center space-x-2 px-3 py-1.5 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                <FiChevronLeft className="w-3 h-3" />
+                <span>Previous</span>
+              </button>
+
+              <div className="flex space-x-3">
+                {currentStep < 7 && (
+                  <button
+                    onClick={() => setCurrentStep(currentStep + 1)}
+                    className="flex items-center space-x-2 px-4 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+                  >
+                    <span>Next</span>
+                    <FiChevronRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

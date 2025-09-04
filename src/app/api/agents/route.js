@@ -50,7 +50,7 @@ export async function POST(request) {
       offerEngine,
       agentPersona,
       objectionHandling,
-      launchTest,
+      testLaunch,
       shopifyShopId,
     } = body;
 
@@ -66,7 +66,7 @@ export async function POST(request) {
       offerEngine,
       agentPersona,
       objectionHandling,
-      launchTest,
+      testLaunch,
       shopifyShopId,
     });
 

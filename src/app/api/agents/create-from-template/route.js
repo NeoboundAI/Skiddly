@@ -16,9 +16,10 @@ import {
 } from "@/lib/apiLogger";
 
 export async function POST(request) {
+  let session = null;
   try {
     // Get user session
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       logAuthFailure(
@@ -132,6 +133,11 @@ export async function POST(request) {
           isServerUrlSecretSet: vapiAgent.isServerUrlSecretSet,
         };
 
+        console.log("vapiConfiguration", vapiConfiguration);
+        console.log(
+          "vapiAgent",
+          JSON.stringify(vapiConfiguration.model.messages)
+        );
         logBusinessEvent("vapi_assistant_configuration_fetched", session.user, {
           assistantId,
           voice: vapiAgent.voice,
@@ -169,6 +175,88 @@ export async function POST(request) {
       );
     }
 
+    // Extract greeting template and objection handling from VAPI messages
+    let extractedGreetingTemplate = "";
+    let extractedObjectionHandling = {};
+
+    if (
+      vapiConfiguration &&
+      vapiConfiguration.model &&
+      vapiConfiguration.model.messages
+    ) {
+      const messages = vapiConfiguration.model.messages;
+      const systemMessage = messages.find((msg) => msg.role === "system");
+
+      if (systemMessage && systemMessage.content) {
+        const content = systemMessage.content;
+
+        // Extract greeting template from "Greeting & Context:" section
+        const greetingMatch = content.match(
+          /Greeting & Context:\s*\n"([^"]+)"/
+        );
+        if (greetingMatch) {
+          extractedGreetingTemplate = greetingMatch[1];
+        }
+
+        // Extract objection handling responses - Map all 8 conditions from VAPI
+        const objectionMappings = {
+          "A. [Shipping Cost Concern:]": "Shipping Cost Concern",
+          "B. [Price Concern:]": "Price Concern",
+          "C. [Size/Fit Doubts (for fashion/apparel):]":
+            "Size/Fit Doubts (for fashion/apparel)",
+          "D. [Payment Issue:]": "Payment Issue",
+          "E. [Just Forgot / Got Busy:]": "Just Forgot / Got Busy",
+          "F. [Technical Issues:]": "Technical Issues",
+          "G. [Product Questions/Uncertainty:]":
+            "Product Questions/Uncertainty",
+          "H. [Comparison Shopping:]": "Comparison Shopping",
+          "I. [Wrong Item/Changed Mind:]": "Wrong Item/Changed Mind",
+        };
+
+        // Extract each objection response using the new -- format
+        Object.keys(objectionMappings).forEach((key) => {
+          // Updated regex to match the new format: A. [Title:] -- "response" --
+          const regex = new RegExp(`${key}\\s*--\\s*\\n"([^"]+)"\\s*--`, "g");
+          const match = regex.exec(content);
+          if (match) {
+            const objectionKey = objectionMappings[key];
+            extractedObjectionHandling[objectionKey] = {
+              enabled: true,
+              defaultEnabled: true,
+              customEnabled: false,
+              title: objectionKey,
+              subtitle: `When customer has ${objectionKey.toLowerCase()}.`,
+              default: match[1],
+              custom: "",
+            };
+          }
+        });
+      }
+    }
+
+    // Update agent persona with VAPI voice configuration
+    const updatedAgentPersona = {
+      ...defaultAgent.defaultConfiguration.agentPersona,
+      voiceProvider: vapiConfiguration?.voice?.provider || "vapi",
+      voiceName:
+        vapiConfiguration?.voice?.voiceId ||
+        defaultAgent.defaultConfiguration.agentPersona.voiceName,
+      greetingTemplate:
+        extractedGreetingTemplate ||
+        defaultAgent.defaultConfiguration.agentPersona.greetingTemplate,
+    };
+
+    // Update objection handling with extracted responses
+    const updatedObjectionHandling = {
+      ...defaultAgent.defaultConfiguration.objectionHandling,
+      ...extractedObjectionHandling,
+    };
+
+    // Log extracted data for debugging
+    console.log("Extracted Greeting Template:", extractedGreetingTemplate);
+    console.log("Extracted Objection Handling:", extractedObjectionHandling);
+    console.log("Updated Agent Persona:", updatedAgentPersona);
+
     // Create new agent from template
     const agent = new Agent({
       userId: user._id,
@@ -176,8 +264,10 @@ export async function POST(request) {
       name: defaultAgent.name,
       type: defaultAgent.type,
       status: "draft", // Start as draft
-      // Spread the default configuration directly into the agent fields
+      // Spread the default configuration and override with extracted data
       ...defaultAgent.defaultConfiguration,
+      agentPersona: updatedAgentPersona,
+      objectionHandling: updatedObjectionHandling,
       vapiConfiguration: vapiConfiguration, // Store the fetched VAPI configuration
     });
 
@@ -215,6 +305,16 @@ export async function POST(request) {
       data: agent,
     });
   } catch (error) {
+    // Log to console for immediate development debugging
+    console.error("🚨 CREATE FROM TEMPLATE ERROR:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      assistantId: request.body?.assistantId,
+      session: session?.user?.id,
+    });
+
     logApiError(
       "POST",
       "/api/agents/create-from-template",

@@ -116,26 +116,13 @@ const AgentConfigurePage = () => {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col h-screen">
-        <div className="flex w-full justify-between items-center border-b border-[#EAECF0] pb-4 mb-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-[#000000]">
-              Configure Agent
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              {agent?.name || "New Agent"} - {selectedShop.shop}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-hidden">
-          <AgentWizard
-            agent={agent}
-            selectedShop={selectedShop}
-            onSave={fetchAgent}
-            agentId={params.id}
-          />
-        </div>
+      <div className="flex flex-col h-full">
+        <AgentWizard
+          agent={agent}
+          selectedShop={selectedShop}
+          onSave={fetchAgent}
+          agentId={params.id}
+        />
       </div>
     </DashboardLayout>
   );

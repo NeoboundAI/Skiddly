@@ -234,13 +234,15 @@ const DashboardPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl border-b border-[#EAECF0] font-semibold text-[#000000] pb-4 mb-4">
+      <div className="flex flex-col h-full">
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 p-6 pb-0">
+          <h1 className="text-2xl border-b border-[#EAECF0] font-semibold text-[#000000] pb-6  mb-4">
             Home
           </h1>
-          <div className="flex items-left flex-col justify-center space-x-2">
+          </div>
+          <div className="flex-1 overflow-y-auto p-6 pt-0">
+          <div className="flex items-left flex-col justify-center space-x-2 mb-6">
             <p className="text-2xl text-[#000000] font-semibold">
               Hi {session?.user?.name?.split(" ")[0] || "User"}!
             </p>
@@ -248,80 +250,83 @@ const DashboardPage = () => {
               Start setting up your store
             </p>
           </div>
-        </div>
+      
 
-        {/* Plan Information */}
-        {session?.user?.plan && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-1">
-                  {session.user.plan === "free"
-                    ? "Free Plan"
-                    : session.user.plan === "infrasonic"
-                    ? "Infrasonic Plan"
-                    : "Ultrasonic Plan"}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Credits remaining: {session.user.credits || 0} outbound calls
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-purple-600">
-                  {session.user.credits || 0}
+        {/* Scrollable Content */}
+       
+          {/* Plan Information */}
+          {session?.user?.plan && (
+            <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                    {session.user.plan === "free"
+                      ? "Free Plan"
+                      : session.user.plan === "infrasonic"
+                      ? "Infrasonic Plan"
+                      : "Ultrasonic Plan"}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Credits remaining: {session.user.credits || 0} outbound
+                    calls
+                  </p>
                 </div>
-                <div className="text-xs text-gray-500">credits left</div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {session.user.credits || 0}
+                  </div>
+                  <div className="text-xs text-gray-500">credits left</div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Onboarding Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
-          {onboardingSteps.map((step) => (
-            <OnboardingCard
-              key={step.id}
-              step={step}
-              onAction={() => {
-                if (step.id === 1) {
-                  if (step.completed) {
-                    router.push("/integration");
-                  } else {
-                    setShowShopifyModal(true);
+          {/* Onboarding Steps */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-8">
+            {onboardingSteps.map((step) => (
+              <OnboardingCard
+                key={step.id}
+                step={step}
+                onAction={() => {
+                  if (step.id === 1) {
+                    if (step.completed) {
+                      router.push("/integration");
+                    } else {
+                      setShowShopifyModal(true);
+                    }
+                  } else if (step.id === 2) {
+                    if (step.completed) {
+                      router.push("/integration");
+                    } else {
+                      setShowTwilioModal(true);
+                    }
+                  } else if (step.id === 3) {
+                    router.push("/agent");
                   }
-                } else if (step.id === 2) {
-                  if (step.completed) {
-                    router.push("/integration");
-                  } else {
-                    setShowTwilioModal(true);
-                  }
-                } else if (step.id === 3) {
-                  router.push("/agent");
-                }
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Bottom Section */}
-        <div className="text-center py-12">
-          <div className="w-24 h-24  rounded-lg mx-auto mb-6 flex items-center justify-center">
-            <img
-              src="/dropbox.png"
-              alt="goodthings"
-              className="w-[104px] h-[104px]"
-            />
+                }}
+              />
+            ))}
           </div>
-          <p className="text-2xl text-[#020617] font-semibold mb-2">
-            Good things coming your way!
-          </p>
-          <p className="text-base text-[#667085] font-medium mb-6">
-            Complete setting up your store to start calling your abandoned
-            leads.
-          </p>
+
+          {/* Bottom Section */}
+          <div className="text-center py-12">
+            <div className="w-24 h-24  rounded-lg mx-auto mb-6 flex items-center justify-center">
+              <img
+                src="/dropbox.png"
+                alt="goodthings"
+                className="w-[104px] h-[104px]"
+              />
+            </div>
+            <p className="text-2xl text-[#020617] font-semibold mb-2">
+              Good things coming your way!
+            </p>
+            <p className="text-base text-[#667085] font-medium mb-6">
+              Complete setting up your store to start calling your abandoned
+              leads.
+            </p>
+          </div>
         </div>
       </div>
-
       {/* Shopify Connect Modal */}
       <ShopifyConnectModal
         isOpen={showShopifyModal}

@@ -35,83 +35,66 @@ const agentSchema = new mongoose.Schema(
       // Store Identity
       storeName: {
         type: String,
-        required: true,
+       
       },
       storeUrl: {
         type: String,
-        required: true,
+        
       },
       tagline: String,
 
       // Contact Information
       supportEmail: {
         type: String,
-        required: true,
+        
       },
       phoneNumber: String,
       businessAddress: String,
-      businessHours: String,
-      supportChannels: String,
+      businessHours: {
+        monday: { isOpen: Boolean, startTime: String, endTime: String },
+        tuesday: { isOpen: Boolean, startTime: String, endTime: String },
+        wednesday: { isOpen: Boolean, startTime: String, endTime: String },
+        thursday: { isOpen: Boolean, startTime: String, endTime: String },
+        friday: { isOpen: Boolean, startTime: String, endTime: String },
+        saturday: { isOpen: Boolean, startTime: String, endTime: String },
+        sunday: { isOpen: Boolean, startTime: String, endTime: String },
+      },
+      supportChannels: [String],
 
       // Store Details
       storeDescription: String,
       storeCategory: String,
 
       // Fulfillment Method
-      fulfillmentMethod: {
-        type: String,
-        enum: ["shipping", "local-pickup"],
-        default: "shipping",
-      },
+      fulfillmentMethod: [String],
     },
 
     // Step 2: Commerce Settings
     commerceSettings: {
-      // Express Providers
-      expressProviders: [
-        {
-          type: String,
-          enum: [
-            "shop-pay",
-            "paypal",
-            "google-pay",
-            "apple-pay",
-            "amazon-pay",
-            "meta-pay",
-            "venmo",
-            "klarna",
-          ],
-        },
-      ],
-
-      // Payments Accepted
-      paymentsAccepted: String, // comma-separated list
-
-      // BNPL (Buy Now Pay Later)
-      bnplProviders: String, // comma-separated list
-
-      // Guest Checkout
+      checkoutProviders: {
+        options: [String],
+        selected: [String],
+      },
+      cardsAccepted: {
+        options: [String],
+        selected: [String],
+      },
+      buyNowPayLater: {
+        options: [String],
+        selected: [String],
+      },
+      discountCategories: {
+        options: [String],
+        selected: [String],
+      },
+      shippingMethods: {
+        options: [String],
+        selected: [String],
+      },
       guestCheckoutEnabled: {
         type: Boolean,
         default: true,
       },
-
-      // Discounts & Notes
-      discountsNotes: String,
-      discountTypes: [
-        {
-          type: String,
-          enum: [
-            "military",
-            "student",
-            "first-responder",
-            "newsletter",
-            "referral",
-          ],
-        },
-      ],
-
-      // Additional Notes
       additionalNotes: String,
     },
 
@@ -124,8 +107,8 @@ const agentSchema = new mongoose.Schema(
             type: String,
             enum: [
               "cart-value",
-              "products",
               "customer-type",
+              "products",
               "previous-orders",
               "location",
               "coupon-code",
@@ -134,7 +117,17 @@ const agentSchema = new mongoose.Schema(
           },
           operator: {
             type: String,
-            enum: [">=", "<=", "==", "!=", "includes", "is"],
+            enum: [
+              ">=",
+              "<=",
+              ">",
+              "<",
+              "=",
+              "is",
+              "is not",
+              "includes",
+              "excludes",
+            ],
           },
           value: mongoose.Schema.Types.Mixed, // Can be string, number, or array
           enabled: {
@@ -148,24 +141,24 @@ const agentSchema = new mongoose.Schema(
       callSchedule: {
         waitTime: {
           type: String,
-          default: "2",
+          default: "30",
         },
         waitTimeUnit: {
           type: String,
-          default: "hours",
+          default: "minutes",
         },
         maxRetries: {
-          type: String,
-          default: "3",
+          type: Number,
+          default: 3,
         },
-        retryInterval: {
-          type: String,
-          default: "24",
-        },
-        retryIntervalUnit: {
-          type: String,
-          default: "hours",
-        },
+        retryIntervals: [
+          {
+            attempt: Number,
+            delay: Number,
+            delayUnit: String,
+            description: String,
+          },
+        ],
         weekendCalling: {
           type: Boolean,
           default: false,
@@ -195,42 +188,42 @@ const agentSchema = new mongoose.Schema(
 
     // Step 4: Offer Engine
     offerEngine: {
-      // Shopify Discount Codes
-      shopifyDiscountCodes: [
-        {
-          code: String,
-          type: String, // "percentage", "fixed", etc.
-          value: String,
-          status: {
-            type: String,
-            enum: ["active", "inactive"],
-            default: "active",
-          },
-          expiresAt: Date,
+      availableDiscounts: {
+        enabled: {
+          type: Boolean,
+          default: false,
         },
-      ],
-
-      // Primary Discount Code (Manual Entry)
-      primaryDiscountCode: String,
-      primaryDiscountValue: String,
-
-      // Shipping Offers
-      offerShippingDiscount: {
-        type: Boolean,
-        default: false,
+        selectedCodes: [String],
+        allCodes: [String],
       },
-      shippingDiscountText: String,
-
-      // Payment Plans
-      offerPaymentPlans: {
-        type: Boolean,
-        default: false,
+      availableOffers: {
+        shippingDiscount: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          description: String,
+          customText: String,
+        },
+        paymentPlans: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          description: String,
+          customText: String,
+        },
       },
-
-      // Return Policy
       returnPolicy: {
-        type: String,
-        default: "30 days return",
+        enabled: {
+          type: Boolean,
+          default: false,
+        },
+        days: {
+          type: Number,
+          default: 30,
+        },
+        description: String,
       },
     },
 
@@ -244,14 +237,11 @@ const agentSchema = new mongoose.Schema(
         type: String,
         default: "English (US)",
       },
-      voiceStyle: {
+      voiceProvider: {
         type: String,
-        enum: [
-          "sarah-professional-female",
-          "mike-friendly-male",
-          "emma-warm-female",
-          "david-confident-male",
-        ],
+      },
+      voiceName: {
+        type: String,
         default: "sarah-professional-female",
       },
       greetingStyle: {
@@ -259,73 +249,54 @@ const agentSchema = new mongoose.Schema(
         enum: ["standard", "casual", "custom"],
         default: "standard",
       },
+      greetingTemplate: String,
       customGreeting: String,
     },
 
-    // Step 6: Objection Handling (already exists, keeping as is)
+    // Step 6: Objection Handling - All 8 conditions from VAPI with default/custom structure
     objectionHandling: {
-      shipping: {
-        type: Boolean,
-        default: true,
+      type: Map,
+      of: {
+        enabled: {
+          type: Boolean,
+          default: true,
+        },
+        defaultEnabled: {
+          type: Boolean,
+          default: true,
+        },
+        customEnabled: {
+          type: Boolean,
+          default: false,
+        },
+        title: String,
+        subtitle: String,
+        default: String,
+        custom: String,
       },
-      price: {
-        type: Boolean,
-        default: true,
-      },
-      size: {
-        type: Boolean,
-        default: true,
-      },
-      payment: {
-        type: Boolean,
-        default: true,
-      },
-      technical: {
-        type: Boolean,
-        default: true,
-      },
-      comparison: {
-        type: Boolean,
-        default: true,
-      },
-      forgot: {
-        type: Boolean,
-        default: true,
-      },
-      shippingResponse: String,
-      priceResponse: String,
-      sizeResponse: String,
-      paymentResponse: String,
-      technicalResponse: String,
-      comparisonResponse: String,
-      forgotResponse: String,
     },
 
-    // Step 7: Launch & Test
-    launchTest: {
-      testCallsCompleted: {
-        type: Number,
-        default: 0,
+    // Step 7: Test & Launch
+    testLaunch: {
+      isLive: {
+        type: Boolean,
+        default: false,
       },
-      validationStatus: {
-        type: String,
-        enum: ["pending", "validated", "failed"],
-        default: "pending",
-      },
-      deploymentStatus: {
-        type: String,
-        enum: ["draft", "testing", "live", "paused"],
-        default: "draft",
-      },
-      lastTestCall: Date,
-      testResults: [
-        {
-          testType: String,
-          status: String,
-          timestamp: Date,
-          notes: String,
+      connectedPhoneNumbers: [String],
+      connectedKnowledgeBase: {
+        enabled: {
+          type: Boolean,
+          default: false,
         },
-      ],
+        selectedBases: [String],
+      },
+      policyLinks: {
+        refundPolicy: String,
+        cancellationPolicy: String,
+        shippingPolicy: String,
+        termsAndConditions: String,
+        warranty: String,
+      },
     },
 
     // VAPI Agent Configuration
@@ -403,6 +374,11 @@ agentSchema.index({ userId: 1, type: 1 });
 agentSchema.index({ vapiAgentId: 1 });
 agentSchema.index({ assistantId: 1 });
 
-const Agent = mongoose.models.Agent || mongoose.model("Agent", agentSchema);
+// Clear any existing model to avoid schema conflicts in development
+if (mongoose.models.Agent) {
+  delete mongoose.models.Agent;
+}
+
+const Agent = mongoose.model("Agent", agentSchema);
 
 export default Agent;

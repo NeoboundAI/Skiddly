@@ -21,13 +21,13 @@ const DashboardLayout = ({ children }) => {
   }, [status, clearShops, queryClient]);
 
   return (
-    <div className="flex h-screen bg-[#F2F4F7]">
+    <div className="flex h-screen  bg-gradient-to-b from-purple-200 via-purple-50 to-purple-100">
       {/* Sidebar */}
       <Sidebar />
 
       {/* Main Content Area */}
       <div className="flex-1 flex border border-[#D9D6FE] rounded-2xl bg-[#F2F4F7] m-4 ml-0 flex-col overflow-hidden">
-        <main className="flex-1 bg-white overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 bg-white  overflow-hidden">{children}</main>
       </div>
     </div>
   );

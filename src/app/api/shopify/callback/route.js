@@ -131,7 +131,7 @@ export async function GET(request) {
 
     const tokenResponse = await exchangeCodeForToken(shop, code);
 
-    // Update shop connection with Shopify connection details
+    // Update shop connection with Shopify connection details (without shop info for now)
     await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
@@ -342,6 +342,80 @@ export async function GET(request) {
           },
         ],
       });
+    }
+
+    // Fetch shop info from Shopify API (after all other operations are complete)
+    try {
+      logExternalApi("Shopify", "fetch_shop_info", userInfoForLogging, {
+        shop,
+        accessToken: tokenResponse.access_token ? "present" : "missing",
+        scope: tokenResponse.scope,
+      });
+
+      const shopInfoResponse = await fetch(
+        `https://${shop}/admin/api/${
+          process.env.SHOPIFY_VERSION || "2025-07"
+        }/shop.json`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": tokenResponse.access_token,
+          },
+        }
+      );
+
+      if (shopInfoResponse.ok) {
+        const shopInfoData = await shopInfoResponse.json();
+        const shopifyShopInfo = shopInfoData.shop;
+
+        // Update shop connection with shop info
+        await ShopifyShop.findOneAndUpdate(
+          { _id: shopConnection._id },
+          {
+            $set: {
+              shopifyShopInfo: shopifyShopInfo,
+            },
+          },
+          {
+            new: true,
+            runValidators: true,
+          }
+        );
+
+        logBusinessEvent("shopify_shop_info_fetched", userInfoForLogging, {
+          shop,
+          shopId: shopifyShopInfo.id,
+          shopName: shopifyShopInfo.name,
+        });
+      } else {
+        const errorText = await shopInfoResponse.text();
+
+        logExternalApiError(
+          "Shopify",
+          "fetch_shop_info",
+          new Error(
+            `Failed to fetch shop info: ${shopInfoResponse.statusText}`
+          ),
+          userInfoForLogging,
+          {
+            shop,
+            status: shopInfoResponse.status,
+            error: errorText,
+          }
+        );
+      }
+    } catch (shopInfoError) {
+      logExternalApiError(
+        "Shopify",
+        "fetch_shop_info",
+        shopInfoError,
+        userInfoForLogging,
+        {
+          shop,
+        }
+      );
+      // Don't fail the connection if shop info fetch fails
     }
 
     logApiSuccess("GET", "/api/shopify/callback", 200, userInfoForLogging, {

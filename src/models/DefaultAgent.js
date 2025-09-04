@@ -1,5 +1,123 @@
 import mongoose from "mongoose";
 
+// Store categories options
+export const STORE_CATEGORIES = [
+  "Clothing",
+  "Jewelry & Watches",
+  "Home & Garden",
+  "Fashion Accessories",
+  "Health & Beauty",
+  "Accessories",
+  "Toys & Hobbies",
+  "Shoes",
+  "Books",
+  "Food & Beverages",
+  "Other Categories",
+];
+
+// Call logic condition types
+export const CONDITION_TYPES = [
+  "cart-value",
+  "customer-type",
+  "products",
+  "previous-orders",
+  "location",
+  "coupon-code",
+  "payment-method",
+];
+
+// Customer types for customer-type condition
+export const CUSTOMER_TYPES = ["new", "returning", "guest"];
+
+// Available operators for different condition types
+export const CONDITION_OPERATORS = {
+  "cart-value": [">=", "<=", ">", "<", "="],
+  "customer-type": ["is", "is not"],
+  products: ["includes", "excludes"],
+  "previous-orders": [">=", "<=", ">", "<", "="],
+  location: ["is", "is not"],
+  "coupon-code": ["is", "is not"],
+  "payment-method": ["is", "is not"],
+};
+
+// Time units for delays
+export const TIME_UNITS = ["minutes", "hours", "days"];
+
+// Common timezones
+export const TIMEZONES = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Asia/Kolkata",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+];
+
+// Return policy days options
+export const RETURN_POLICY_DAYS = [7, 14, 21, 30, 45, 60, 90];
+
+// Offer types
+export const OFFER_TYPES = ["shippingDiscount", "paymentPlans"];
+
+// Voice providers
+export const VOICE_PROVIDERS = ["vapi", "elevenLabs"];
+
+// Available languages
+export const LANGUAGES = [
+  "English (US)",
+  "English (UK)",
+  "English (AU)",
+  "Spanish",
+  "French",
+  "German",
+  "Italian",
+  "Portuguese",
+  "Chinese",
+  "Japanese",
+  "Korean",
+  "Hindi",
+];
+
+// Greeting styles
+export const GREETING_STYLES = ["standard", "casual", "custom"];
+
+// Objection handling types
+export const OBJECTION_TYPES = [
+  "shippingCost",
+  "price",
+  "payment",
+  "technical",
+  "size",
+  "comparison",
+  "forgot",
+];
+
+// VAPI prompt keywords for objection handling
+export const VAPI_OBJECTION_KEYWORDS = {
+  shippingCost: "shippingResponse",
+  price: "priceResponse",
+  payment: "paymentResponse",
+  technical: "technicalResponse",
+  size: "sizeResponse",
+  comparison: "comparisonResponse",
+  forgot: "forgotResponse",
+};
+
+// Greeting templates for each style
+export const GREETING_TEMPLATES = {
+  standard:
+    "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet.",
+  casual:
+    "Hey [Name]! It's [Agent] from [Store]. Saw you were checking out some items - want to finish up real quick?",
+  custom: "", // User will provide their own
+};
+
 const defaultAgentSchema = new mongoose.Schema(
   {
     name: {
@@ -23,9 +141,15 @@ const defaultAgentSchema = new mongoose.Schema(
       type: String,
       default: "Hindi / English",
     },
+    shopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ShopifyShop",
+
+      default: null,
+    },
     enabled: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     assistantId: {
       type: String,
@@ -38,34 +162,80 @@ const defaultAgentSchema = new mongoose.Schema(
       default: {
         // Step 1: Store Profile defaults
         storeProfile: {
-          storeName: "Your Store Name",
-          storeUrl: "your-store.myshopify.com",
-          tagline: "Your store tagline",
-          supportEmail: "support@yourstore.com",
-          phoneNumber: "+1 (555) 123-4567",
-          businessAddress: "123 Business St, City, State, ZIP",
-          businessHours: "Mon-Fri, 9am-6pm",
-          supportChannels: "Email, Chat, Phone",
-          storeDescription: "Tell customers what makes your store special...",
-          storeCategory: "Select a category",
-          fulfillmentMethod: "shipping",
+          storeName: "",
+          storeUrl: "",
+          tagline: "",
+          supportEmail: "",
+          phoneNumber: "",
+          businessAddress: "",
+          businessHours: {
+            monday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            tuesday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            wednesday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            thursday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            friday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
+            saturday: { isOpen: false, startTime: "09:00", endTime: "18:00" },
+            sunday: { isOpen: false, startTime: "09:00", endTime: "18:00" },
+          },
+          supportChannels: ["Email", "Chat", "Phone"],
+          storeDescription: "",
+          storeCategory: "",
+          fulfillmentMethod: [],
         },
 
         // Step 2: Commerce Settings defaults
         commerceSettings: {
-          expressProviders: ["shop-pay", "paypal", "google-pay", "apple-pay"],
-          paymentsAccepted: "Visa, Mastercard, Amex",
-          bnplProviders: "Klarna, Afterpay",
-          guestCheckoutEnabled: true,
-          discountsNotes: "Student verified via SheerID.",
-          discountTypes: [
-            "military",
-            "student",
-            "first-responder",
-            "newsletter",
-          ],
-          additionalNotes:
-            "Apple Pay shows on Safari/iOS; Venmo via PayPal on mobile (US).",
+          checkoutProviders: {
+            options: [
+              "Shop Pay",
+              "PayPal",
+              "Google Pay",
+              "Apple Pay",
+              "Amazon Pay",
+              "Meta Pay",
+              "Venmo",
+              "Klarna",
+            ],
+            selected: [],
+          },
+          cardsAccepted: {
+            options: [
+              "Visa",
+              "Mastercard",
+              "American Express",
+              "Discover",
+              "JCB",
+              "Diners Club",
+            ],
+            selected: [],
+          },
+          buyNowPayLater: {
+            options: ["Klarna", "Afterpay", "Affirm", "Sezzle", "Splitit"],
+            selected: [],
+          },
+          discountCategories: {
+            options: [
+              "Military",
+              "Student",
+              "First Responder",
+              "Newsletter",
+              "Referral",
+              "Senior",
+              "Teacher",
+            ],
+            selected: [],
+          },
+          shippingMethods: {
+            options: [
+              "USPS",
+              "UPS",
+              "FedEx",
+              "DHL",
+              "Local Delivery",
+              "Same Day Delivery",
+            ],
+            selected: [],
+          },
         },
 
         // Step 3: Call Logic defaults
@@ -80,16 +250,82 @@ const defaultAgentSchema = new mongoose.Schema(
             {
               type: "customer-type",
               operator: "is",
-              value: "new",
-              enabled: true,
+              value: [],
+              enabled: false,
+            },
+            {
+              type: "products",
+              operator: "includes",
+              value: [],
+              enabled: false,
+            },
+            {
+              type: "previous-orders",
+              operator: "<=",
+              value: "5",
+              enabled: false,
+            },
+            {
+              type: "location",
+              operator: "is",
+              value: [],
+              enabled: false,
+            },
+            {
+              type: "coupon-code",
+              operator: "is",
+              value: [],
+              enabled: false,
+            },
+            {
+              type: "payment-method",
+              operator: "is",
+              value: [],
+              enabled: false,
             },
           ],
           callSchedule: {
-            waitTime: "2",
-            waitTimeUnit: "hours",
-            maxRetries: "3",
-            retryInterval: "24",
-            retryIntervalUnit: "hours",
+            waitTime: "30",
+            waitTimeUnit: "minutes",
+            maxRetries: 3,
+            retryIntervals: [
+              {
+                attempt: 1,
+                delay: 0,
+                delayUnit: "minutes",
+                description: "Immediately (as per your configuration)",
+              },
+              {
+                attempt: 2,
+                delay: 5,
+                delayUnit: "minutes",
+                description: "After 5 minutes from 1st attempt",
+              },
+              {
+                attempt: 3,
+                delay: 3,
+                delayUnit: "hours",
+                description: "After 3 hours from 2nd attempt",
+              },
+              {
+                attempt: 4,
+                delay: 1,
+                delayUnit: "days",
+                description: "Next day from 3rd attempt",
+              },
+              {
+                attempt: 5,
+                delay: 1,
+                delayUnit: "days",
+                description: "Following day from 4th attempt",
+              },
+              {
+                attempt: 6,
+                delay: 3,
+                delayUnit: "days",
+                description: "After 3 days from 5th attempt",
+              },
+            ],
             weekendCalling: false,
             callTimeStart: "09:00",
             callTimeEnd: "18:00",
@@ -101,55 +337,151 @@ const defaultAgentSchema = new mongoose.Schema(
 
         // Step 4: Offer Engine defaults
         offerEngine: {
-          shopifyDiscountCodes: [],
-          primaryDiscountCode: "SAVE15",
-          primaryDiscountValue: "15",
-          offerShippingDiscount: true,
-          shippingDiscountText: "Free shipping on orders over $50",
-          offerPaymentPlans: true,
-          returnPolicy: "30 days return",
+          availableDiscounts: {
+            enabled: false,
+            selectedCodes: [],
+            allCodes: [], // Will be populated from Shopify
+          },
+          availableOffers: {
+            shippingDiscount: {
+              enabled: false,
+              description: "Offer free discounted shipping",
+              customText: "",
+            },
+            paymentPlans: {
+              enabled: false,
+              description: "Offer payment plans - for high value carts",
+              customText: "",
+            },
+          },
+          returnPolicy: {
+            enabled: false,
+            days: 30,
+            description: "30 days return",
+          },
         },
 
         // Step 5: Agent Persona defaults
         agentPersona: {
-          agentName: "Sarah",
+          agentName: "Emma",
           language: "English (US)",
-          voiceStyle: "sarah-professional-female",
+          voiceProvider: "vapi",
+          voiceName: "sarah-professional-female",
           greetingStyle: "standard",
+          greetingTemplate:
+            "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet.",
           customGreeting: "",
         },
 
-        // Step 6: Objection Handling defaults
+        // Step 6: Objection Handling defaults - All 8 conditions from VAPI
         objectionHandling: {
-          shipping: true,
-          price: true,
-          size: true,
-          payment: true,
-          technical: true,
-          comparison: true,
-          forgot: true,
-          shippingResponse:
-            "We offer fast and reliable shipping with tracking.",
-          priceResponse:
-            "We have competitive pricing and often run special promotions.",
-          sizeResponse:
-            "We offer a wide range of sizes and easy returns if needed.",
-          paymentResponse:
-            "We accept all major credit cards and offer secure checkout.",
-          technicalResponse:
-            "Our customer support team is here to help with any issues.",
-          comparisonResponse:
-            "We're confident you'll find our quality and service exceptional.",
-          forgotResponse:
-            "No problem! I can help you complete your purchase quickly.",
+          "Shipping Cost Concern": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Shipping Cost Concerns",
+            subtitle: "When customer complaints about shipping cost.",
+            default:
+              "I completely understand — actually, we sometimes offer free or discounted shipping. Would it help if I sent you today's best shipping offer?",
+            custom: "",
+          },
+          "Price Concern": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Price of objections",
+            subtitle: "When customer complaints about price.",
+            default:
+              "I hear you — pricing matters. I can check if there's any ongoing discount, or I can share a quick offer code you could use today: {{DiscountCode}}.",
+            custom: "",
+          },
+          "Payment Issue": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Payment concerns",
+            subtitle: "When customer complaints about payment methods.",
+            default:
+              "Ah, that's frustrating. I can send you a quick payment link now on WhatsApp or SMS — it should only take a minute to complete your order.",
+            custom: "",
+          },
+          "Technical Issues": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Technical issues",
+            subtitle: "When customer complaints about technical problems.",
+            default:
+              "I'm sorry you experienced that. Let me send you a direct checkout link that should work smoothly, or I can help you complete the order over the phone right now.",
+            custom: "",
+          },
+          "Size/Fit Doubts (for fashion/apparel)": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Size/Fit Concerns",
+            subtitle: "When customer complaints about size or fit.",
+            default:
+              "Totally get it — fit is important. We have a quick size chart and easy exchange policy. Want me to text it to you?",
+            custom: "",
+          },
+          "Comparison Shopping": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Comparison Shopping",
+            subtitle: "When customer is comparing with other stores.",
+            default:
+              "I understand you want to make sure you're getting the best deal. What I can offer you right now is {{DiscountCode}} which gives you [discount details], plus our quality guarantee.",
+            custom: "",
+          },
+          "Just Forgot / Got Busy": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Forgot to Complete",
+            subtitle: "When customer forgot to complete purchase.",
+            default:
+              "No problem at all — I can send you the checkout link so you can finish whenever you're ready.",
+            custom: "",
+          },
+          "Product Questions/Uncertainty": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Product Questions/Uncertainty",
+            subtitle: "When customer has questions about products.",
+            default:
+              "Great question about {{ProductNames}}. Let me share some quick details that might help: [provide relevant info]. Also, we have a great return policy if you're not completely satisfied.",
+            custom: "",
+          },
+          "Wrong Item/Changed Mind": {
+            enabled: true,
+            defaultEnabled: true,
+            customEnabled: false,
+            title: "Wrong Item/Changed Mind",
+            subtitle: "When customer wants to change or remove items.",
+            default:
+              "No worries at all. Would you like me to help you find something else from our collection that might be a better fit? Or shall I remove these items from your cart?",
+            custom: "",
+          },
         },
 
-        // Step 7: Launch & Test defaults
-        launchTest: {
-          testCallsCompleted: 0,
-          validationStatus: "pending",
-          deploymentStatus: "draft",
-          testResults: [],
+        // Step 7: Test & Launch defaults
+        testLaunch: {
+          isLive: false,
+          connectedPhoneNumbers: [],
+          connectedKnowledgeBase: {
+            enabled: false,
+            selectedBases: [],
+          },
+          policyLinks: {
+            refundPolicy: "",
+            cancellationPolicy: "",
+            shippingPolicy: "",
+            termsAndConditions: "",
+            warranty: "",
+          },
         },
       },
     },
@@ -163,8 +495,11 @@ const defaultAgentSchema = new mongoose.Schema(
 defaultAgentSchema.index({ type: 1, enabled: 1 });
 defaultAgentSchema.index({ assistantId: 1 });
 
-const DefaultAgent =
-  mongoose.models.DefaultAgent ||
-  mongoose.model("DefaultAgent", defaultAgentSchema);
+// Clear any existing model to avoid schema conflicts in development
+if (mongoose.models.DefaultAgent) {
+  delete mongoose.models.DefaultAgent;
+}
+
+const DefaultAgent = mongoose.model("DefaultAgent", defaultAgentSchema);
 
 export default DefaultAgent;
