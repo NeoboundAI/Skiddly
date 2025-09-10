@@ -9,12 +9,12 @@ import {
   logApiSuccess,
   logAuthFailure,
   logDbOperation,
-  logBusinessEvent,
 } from "@/lib/apiLogger";
 
 export async function PUT(request, { params }) {
   let session;
   let id;
+  let body;
   try {
     // Get user session
     session = await getServerSession(authOptions);
@@ -22,7 +22,7 @@ export async function PUT(request, { params }) {
     if (!session?.user?.email) {
       logAuthFailure(
         "PUT",
-        "/api/agents/[id]/update-vapi",
+        "/api/agents/[id]/step",
         null,
         "No session or user email"
       );
@@ -40,7 +40,7 @@ export async function PUT(request, { params }) {
     if (!user) {
       logAuthFailure(
         "PUT",
-        "/api/agents/[id]/update-vapi",
+        "/api/agents/[id]/step",
         session.user,
         "User not found in database"
       );
@@ -50,9 +50,26 @@ export async function PUT(request, { params }) {
     // Await params before destructuring
     const resolvedParams = await params;
     id = resolvedParams.id;
-    const body = await request.json();
-    const { configuration, vapiConfiguration, vapiAgentId, shopifyShopId } =
-      body;
+    body = await request.json();
+    const { step, data } = body;
+
+    // Validate step parameter
+    const validSteps = [
+      "storeProfile",
+      "commerceSettings",
+      "callLogic",
+      "offerEngine",
+      "agentPersona",
+      "objectionHandling",
+      "testLaunch",
+    ];
+
+    if (!step || !validSteps.includes(step)) {
+      return NextResponse.json(
+        { error: "Invalid step parameter" },
+        { status: 400 }
+      );
+    }
 
     // Find the agent and ensure it belongs to the user
     const agent = await Agent.findOne({
@@ -63,7 +80,7 @@ export async function PUT(request, { params }) {
     if (!agent) {
       logApiError(
         "PUT",
-        "/api/agents/[id]/update-vapi",
+        "/api/agents/[id]/step",
         404,
         new Error("Agent not found"),
         session.user,
@@ -74,65 +91,49 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    logDbOperation("read", "Agent", session.user, {
-      agentId: id,
-      operation: "find_agent_for_vapi_update",
-    });
+    // Prepare update object with step data
+    const updateData = {
+      [step]: data,
+    };
 
-    // Update agent with new configuration and VAPI agent ID
+    // Update agent with step data
     const updatedAgent = await Agent.findByIdAndUpdate(
       id,
+      { $set: updateData },
       {
-        configuration,
-        vapiConfiguration,
-        vapiAgentId, // This will be set when VAPI agent is created
-        shopifyShopId,
-        status: "active", // Mark as active once VAPI agent is created
-      },
-      { new: true }
-    );
-
+        new: true,
+        runValidators: true,
+      }
+    ).populate("shopifyShopId");
+    console.log(updatedAgent);
     logDbOperation("update", "Agent", session.user, {
       agentId: id,
-      operation: "update_vapi_configuration",
-      previousStatus: agent.status,
-      newStatus: "active",
-      hasVapiAgentId: !!vapiAgentId,
-      hasShopifyShopId: !!shopifyShopId,
+      operation: `update_${step}_step`,
+      updatedFields: [step],
     });
 
-    logBusinessEvent("agent_vapi_updated", session.user, {
+    logApiSuccess("PUT", "/api/agents/[id]/step", 200, session.user, {
       agentId: id,
-      agentName: agent.name,
-      vapiAgentId,
-      shopifyShopId,
-      status: "active",
-    });
-
-    logApiSuccess("PUT", "/api/agents/[id]/update-vapi", 200, session.user, {
-      agentId: id,
-      agentName: agent.name,
-      vapiAgentId,
-      status: "active",
+      step: step,
+      agentName: updatedAgent.name,
     });
 
     return NextResponse.json({
       success: true,
-      data: updatedAgent,
+      data: {
+        step: step,
+        updatedData: updatedAgent[step],
+        agent: updatedAgent,
+      },
     });
   } catch (error) {
-    logApiError(
-      "PUT",
-      "/api/agents/[id]/update-vapi",
-      500,
-      error,
-      session?.user?.id,
-      {
-        agentId: id,
-      }
-    );
+    console.log(error);
+    logApiError("PUT", "/api/agents/[id]/step", 500, error, session?.user, {
+      agentId: id,
+      step: body?.step,
+    });
     return NextResponse.json(
-      { error: "Failed to update agent with VAPI configuration" },
+      { error: "Failed to update agent step" },
       { status: 500 }
     );
   }

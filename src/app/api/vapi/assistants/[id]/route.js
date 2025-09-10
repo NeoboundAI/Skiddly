@@ -11,9 +11,11 @@ import {
 } from "@/lib/apiLogger";
 
 export async function GET(request, { params }) {
+  let session;
+  let id;
   try {
     // Get user session
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       logAuthFailure(
@@ -28,7 +30,8 @@ export async function GET(request, { params }) {
       );
     }
 
-    const { id } = await params;
+    const resolvedParams = await params;
+    id = resolvedParams.id;
 
     // Initialize VAPI client
     const client = new VapiClient({
@@ -41,6 +44,7 @@ export async function GET(request, { params }) {
     });
 
     const assistant = await client.assistants.get(id);
+    console.log("assistant", assistant);
 
     logApiSuccess("GET", "/api/vapi/assistants/[id]", 200, session.user, {
       assistantId: id,
@@ -53,19 +57,12 @@ export async function GET(request, { params }) {
     });
   } catch (error) {
     logExternalApiError("VAPI", "get_assistant", error, session?.user?.email, {
-      assistantId: params?.id,
+      assistantId: id,
     });
 
-    logApiError(
-      "GET",
-      "/api/vapi/assistants/[id]",
-      500,
-      error,
-      session?.user,
-      {
-        assistantId: params?.id,
-      }
-    );
+    logApiError("GET", "/api/vapi/assistants/[id]", 500, error, session?.user, {
+      assistantId: id,
+    });
 
     return NextResponse.json(
       { error: "Failed to fetch assistant" },

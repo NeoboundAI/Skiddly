@@ -65,9 +65,11 @@ export async function POST(req) {
       );
     }
 
-    // Check if user already has a number (one free number per user)
+    // Check if this specific number is already assigned to this user (prevent duplicates)
     const existingNumber = await TwilioNumber.findOne({
       userId: user._id,
+      phoneNumber: phoneNumber,
+      sid: sid,
       isActive: true,
     });
     if (existingNumber) {
@@ -75,7 +77,7 @@ export async function POST(req) {
         "POST",
         "/api/twilio/assign-free-number",
         400,
-        new Error("User already has an active number"),
+        new Error("User already has this specific number assigned"),
         session.user,
         {
           existingNumberId: existingNumber._id.toString(),
@@ -83,13 +85,13 @@ export async function POST(req) {
         }
       );
       return NextResponse.json(
-        { success: false, message: "User already has an active number" },
+        { success: false, message: "You already have this number assigned" },
         { status: 400 }
       );
     }
 
     logDbOperation("read", "TwilioNumber", session.user, {
-      operation: "check_existing_active_number",
+      operation: "check_existing_number_assignment",
       hasExistingNumber: !!existingNumber,
     });
 
@@ -168,8 +170,8 @@ export async function POST(req) {
       }
     );
 
-    // Note: We don't update the DefaultNumber status anymore
-    // This allows multiple users to use the same default number
+    // Note: We don't update the DefaultNumber status
+    // Free numbers can be assigned to multiple users
     // The default number remains available for other users
 
     return NextResponse.json({

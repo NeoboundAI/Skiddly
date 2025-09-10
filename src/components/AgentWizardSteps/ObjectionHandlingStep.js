@@ -10,170 +10,255 @@ import {
   FiTool,
   FiBarChart2,
   FiHelpCircle,
+  FiRotateCcw,
 } from "react-icons/fi";
 
-const ObjectionHandlingStep = ({ config, onUpdate }) => {
+const ObjectionHandlingStep = ({ config, onUpdate, errors = {} }) => {
   const handleChange = (field, value) => {
     onUpdate({ [field]: value });
   };
 
   const objectionTypes = [
     {
-      id: "shipping",
-      name: "Shipping Concerns",
+      id: "Shipping Cost Concern",
+      name: "Shipping Cost Concerns",
       icon: FiTruck,
-      description: "Address shipping time, cost, and tracking concerns",
-      defaultResponse: "We offer fast and reliable shipping with tracking.",
     },
     {
-      id: "price",
-      name: "Price Concerns",
+      id: "Price Concern",
+      name: "Price of objections",
       icon: FiDollarSign,
-      description: "Handle pricing questions and offer discounts",
-      defaultResponse:
-        "We have competitive pricing and often run special promotions.",
     },
     {
-      id: "size",
-      name: "Size/Fit Issues",
-      icon: FiMaximize2,
-      description: "Address sizing concerns and return policies",
-      defaultResponse:
-        "We offer a wide range of sizes and easy returns if needed.",
-    },
-    {
-      id: "payment",
-      name: "Payment Security",
+      id: "Payment Issue",
+      name: "Payment concerns",
       icon: FiCreditCard,
-      description: "Assure customers about payment security",
-      defaultResponse:
-        "We accept all major credit cards and offer secure checkout.",
     },
     {
-      id: "technical",
-      name: "Technical Issues",
+      id: "Technical Issues",
+      name: "Technical issues",
       icon: FiTool,
-      description: "Handle website or checkout problems",
-      defaultResponse:
-        "Our customer support team is here to help with any issues.",
     },
     {
-      id: "comparison",
-      name: "Competitor Comparison",
+      id: "Size/Fit Doubts (for fashion/apparel)",
+      name: "Size/Fit Concerns",
+      icon: FiMaximize2,
+    },
+    {
+      id: "Comparison Shopping",
+      name: "Comparison Shopping",
       icon: FiBarChart2,
-      description: "Address comparisons with other stores",
-      defaultResponse:
-        "We're confident you'll find our quality and service exceptional.",
     },
     {
-      id: "forgot",
-      name: "Forgot About Cart",
+      id: "Just Forgot / Got Busy",
+      name: "Forgot to Complete",
       icon: FiHelpCircle,
-      description: "Handle customers who forgot they had items",
-      defaultResponse:
-        "No problem! I can help you complete your purchase quickly.",
+    },
+    {
+      id: "Product Questions/Uncertainty",
+      name: "Product Questions/Uncertainty",
+      icon: FiMessageSquare,
+    },
+    {
+      id: "Wrong Item/Changed Mind",
+      name: "Wrong Item/Changed Mind",
+      icon: FiHelpCircle,
     },
   ];
 
+  const handleObjectionToggle = (objectionId) => {
+    const currentData = config[objectionId] || {};
+    handleChange(objectionId, {
+      ...currentData,
+      enabled: !currentData.enabled,
+    });
+  };
+
+  const handleCustomToggle = (objectionId) => {
+    const currentData = config[objectionId] || {};
+    handleChange(objectionId, {
+      ...currentData,
+      customEnabled: !currentData.customEnabled,
+      defaultEnabled: currentData.customEnabled,
+    });
+  };
+
+  const handleCustomTextChange = (objectionId, value) => {
+    const currentData = config[objectionId] || {};
+    handleChange(objectionId, {
+      ...currentData,
+      custom: value,
+    });
+  };
+
+  const resetToDefault = (objectionId) => {
+    const currentData = config[objectionId] || {};
+    handleChange(objectionId, {
+      ...currentData,
+      customEnabled: false,
+      defaultEnabled: true,
+      custom: "",
+    });
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-3">
-      <div className="text-center mb-3">
-        <h2 className="text-base font-bold text-gray-900 mb-0.5">
+    <div className="space-y-8">
+      {/* Objection Handling Header */}
+      <div>
+        <h2 className="text-base font-semibold text-gray-900 mb-1">
           Objection Handling
         </h2>
-        <p className="text-[11px] text-gray-600">
-          Preloaded and customizable responses to common shopper hesitations or objections
+        <p className="text-xs text-gray-600">
+          Preloaded and customizable objection responses for common shopper
+          hesitations
         </p>
       </div>
 
       <div className="space-y-4">
-        {objectionTypes.map((type) => {
-          const Icon = type.icon;
-          const isEnabled = config[type.id];
-          const response = config[`${type.id}Response`];
+       
 
-          return (
-            <div
-              key={type.id}
-              className="bg-white rounded-lg border border-gray-200 p-4"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Icon className="w-4 h-4 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-gray-900">
-                      {type.name}
-                    </h3>
-                    <p className="text-xs text-gray-600">{type.description}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleChange(type.id, !isEnabled)}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    isEnabled ? "bg-purple-600" : "bg-gray-200"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      isEnabled ? "translate-x-5" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
+        <div className="space-y-3">
+          {objectionTypes.map((type) => {
+            const Icon = type.icon;
+            const objectionData = config[type.id] || {};
+            const isEnabled = objectionData.enabled || false;
+            const isCustomEnabled = objectionData.customEnabled || false;
+            const isDefaultEnabled = objectionData.defaultEnabled || false;
+            const defaultResponse = objectionData.default || "";
+            const customResponse = objectionData.custom || "";
 
-              {isEnabled && (
-                <div className="mt-3">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Custom Response
-                  </label>
-                  <textarea
-                    value={response}
-                    onChange={(e) =>
-                      handleChange(`${type.id}Response`, e.target.value)
-                    }
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-xs"
-                    placeholder={type.defaultResponse}
-                  />
-                  <p className="text-[11px] text-gray-500 mt-1">
-                    Leave empty to use default response: "{type.defaultResponse}"
-                  </p>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Summary Section */}
-      <div className="bg-blue-50 rounded-lg border border-blue-200 p-4 mt-2">
-        <h3 className="text-base font-semibold text-blue-900 mb-3 flex items-center">
-          <FiMessageSquare className="w-4 h-4 mr-2" />
-          Objection Handling Summary
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {objectionTypes.map((type) => (
-            <div key={type.id} className="text-center">
+            return (
               <div
-                className={`w-7 h-7 mx-auto rounded-full flex items-center justify-center ${
-                  config[type.id] ? "bg-green-100" : "bg-gray-100"
+                key={type.id}
+                className={`rounded-lg border-2 p-3 transition-all ${
+                  isEnabled
+                    ? "bg-purple-50 border-purple-400"
+                    : "bg-white border-gray-200"
                 }`}
               >
-                {config[type.id] ? (
-                  <div className="w-2.5 h-2.5 bg-green-600 rounded-full"></div>
-                ) : (
-                  <div className="w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Icon className="w-3 h-3 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">
+                        {type.name}
+                      </h3>
+                      <p className="text-xs text-gray-600">
+                        {objectionData.subtitle ||
+                          "Configure response for this objection type"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleObjectionToggle(type.id)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      isEnabled ? "bg-purple-600" : "bg-gray-200"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                        isEnabled ? "translate-x-5" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {isEnabled && (
+                  <div className="mt-3 space-y-3">
+                    {/* Response Type Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <label className="flex items-center space-x-1">
+                          <input
+                            type="radio"
+                            name={`response-${type.id}`}
+                            checked={isDefaultEnabled}
+                            onChange={() => {
+                              if (!isDefaultEnabled) {
+                                handleChange(type.id, {
+                                  ...objectionData,
+                                  defaultEnabled: true,
+                                  customEnabled: false,
+                                });
+                              }
+                            }}
+                            className="w-3 h-3 text-purple-600"
+                          />
+                          <span className="text-xs font-medium text-gray-700">
+                            Default Response
+                          </span>
+                        </label>
+                        <label className="flex items-center space-x-1">
+                          <input
+                            type="radio"
+                            name={`response-${type.id}`}
+                            checked={isCustomEnabled}
+                            onChange={() => {
+                              if (!isCustomEnabled) {
+                                handleChange(type.id, {
+                                  ...objectionData,
+                                  customEnabled: true,
+                                  defaultEnabled: false,
+                                });
+                              }
+                            }}
+                            className="w-3 h-3 text-purple-600"
+                          />
+                          <span className="text-xs font-medium text-gray-700">
+                            Custom Response
+                          </span>
+                        </label>
+                      </div>
+                      {isCustomEnabled && (
+                        <button
+                          onClick={() => resetToDefault(type.id)}
+                          className="flex items-center space-x-1 text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          <FiRotateCcw className="w-3 h-3" />
+                          <span>Reset to Default</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Response Content */}
+                    <div>
+                      {isDefaultEnabled ? (
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <p className="text-xs text-gray-700 font-medium mb-1">
+                            Default Response:
+                          </p>
+                          <p className="text-xs text-gray-600 italic">
+                            "{defaultResponse}"
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            Custom Response
+                          </label>
+                          <textarea
+                            value={customResponse}
+                            onChange={(e) =>
+                              handleCustomTextChange(type.id, e.target.value)
+                            }
+                            rows={3}
+                            className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-xs"
+                            placeholder="Enter your custom response here..."
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Default: "{defaultResponse}"
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-              <p className="text-xs text-gray-600 mt-1">{type.name}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
-        <p className="text-xs text-blue-700 mt-3">
-          <strong>Tip:</strong> Enable the objection types you want your agent to handle. You can customize responses for each type or use the default responses.
-        </p>
       </div>
     </div>
   );

@@ -35,18 +35,15 @@ const agentSchema = new mongoose.Schema(
       // Store Identity
       storeName: {
         type: String,
-       
       },
       storeUrl: {
         type: String,
-        
       },
       tagline: String,
 
       // Contact Information
       supportEmail: {
         type: String,
-        
       },
       phoneNumber: String,
       businessAddress: String,
@@ -194,7 +191,7 @@ const agentSchema = new mongoose.Schema(
           default: false,
         },
         selectedCodes: [String],
-        allCodes: [String],
+        allCodes: [mongoose.Schema.Types.Mixed],
       },
       availableOffers: {
         shippingDiscount: {
@@ -231,7 +228,6 @@ const agentSchema = new mongoose.Schema(
     agentPersona: {
       agentName: {
         type: String,
-        required: true,
       },
       language: {
         type: String,
@@ -245,35 +241,45 @@ const agentSchema = new mongoose.Schema(
         default: "sarah-professional-female",
       },
       greetingStyle: {
-        type: String,
-        enum: ["standard", "casual", "custom"],
-        default: "standard",
+        standard: {
+          enabled: {
+            type: Boolean,
+            default: true,
+          },
+          template: {
+            type: String,
+            default:
+              "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet. Is this a good time to talk for a minute?",
+          },
+        },
+        casual: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          template: {
+            type: String,
+            default:
+              "Hey [Name]! I'm [Agent] from [Store]. I saw you were looking at [Product] - want to chat about it?",
+          },
+        },
+        custom: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          template: {
+            type: String,
+            default: "",
+          },
+        },
       },
-      greetingTemplate: String,
-      customGreeting: String,
     },
 
     // Step 6: Objection Handling - All 8 conditions from VAPI with default/custom structure
     objectionHandling: {
-      type: Map,
-      of: {
-        enabled: {
-          type: Boolean,
-          default: true,
-        },
-        defaultEnabled: {
-          type: Boolean,
-          default: true,
-        },
-        customEnabled: {
-          type: Boolean,
-          default: false,
-        },
-        title: String,
-        subtitle: String,
-        default: String,
-        custom: String,
-      },
+      type: Object,
+      default: {},
     },
 
     // Step 7: Test & Launch
@@ -299,41 +305,40 @@ const agentSchema = new mongoose.Schema(
       },
     },
 
-    // VAPI Agent Configuration
+    // VAPI Agent Configuration - Basic structure matching actual VAPI API response
     vapiConfiguration: {
+      // Voice configuration
       voice: {
+        model: String,
         voiceId: String,
-        provider: {
-          type: String,
-          default: "vapi",
-        },
+        provider: String,
+        stability: Number,
+        similarityBoost: Number,
       },
+
+      // Model configuration
       model: {
         model: String,
-        provider: {
-          type: String,
-          default: "openai",
+        messages: {
+          type: Array,
+          default: [],
         },
-        messages: [Object],
+        provider: String,
       },
+
+      // Basic messages
       firstMessage: String,
       voicemailMessage: String,
       endCallMessage: String,
+
+      // Transcriber configuration
       transcriber: {
-        model: {
-          type: String,
-          default: "nova-2",
-        },
-        language: {
-          type: String,
-          default: "en",
-        },
-        provider: {
-          type: String,
-          default: "deepgram",
-        },
+        model: String,
+        language: String,
+        provider: String,
       },
-      serverUrl: String,
+
+      // Server configuration
       isServerUrlSecretSet: {
         type: Boolean,
         default: false,

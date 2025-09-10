@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   FiPlay,
   FiCheckCircle,
@@ -8,12 +8,65 @@ import {
   FiClock,
   FiSettings,
   FiBarChart2,
+  FiPhone,
+  FiUser,
+  FiBox,
 } from "react-icons/fi";
+import TwilioConnectionModal from "@/components/TwilioConnectionModal";
+import { useTwilio } from "@/hooks/useTwilio";
+import toast from "react-hot-toast";
 
-const LaunchTestStep = ({ config, onUpdate, onSave, loading }) => {
+// Section Separator Component
+const SectionSeparator = () => (
+  <div className="border-t-2 border-dashed border-gray-200 my-8"></div>
+);
+
+const LaunchTestStep = ({ config, onUpdate,agentConfig, onSave, loading, errors = {} }) => {
+  const [showTwilioModal, setShowTwilioModal] = useState(false);
+  const { numbers, hasNumbers, updateNumbersAfterConnection } = useTwilio();
+  // Find the selected phone number from the numbers array
+  console.log(numbers)
+  const selectedPhoneNumber =
+    config?.connectedPhoneNumbers?.length > 0
+      ? numbers.find((n) => n._id === config.connectedPhoneNumbers[0])
+      : null;
+
   const handleChange = (field, value) => {
     onUpdate({ [field]: value });
   };
+
+  const handleTwilioConnect = async (numberData) => {
+    try {
+      console.log("Twilio connected with number:", numberData);
+
+      // Update the numbers after connection
+      await updateNumbersAfterConnection();
+
+      toast.success(
+        `Twilio connected successfully! Number: ${numberData.phoneNumber}`
+      );
+    } catch (error) {
+      console.error("Error connecting Twilio:", error);
+      toast.error("Failed to connect Twilio. Please try again.");
+    }
+  };
+
+
+  const handleNumberSelect = (number) => {
+    // Update the config with the selected number ID in connectedPhoneNumbers array
+    onUpdate({ connectedPhoneNumbers: number ? [number._id] : [] });
+  };
+
+  // Safety check for config
+  if (!config) {
+    return (
+      <div className="space-y-8">
+        <div className="text-center py-8">
+          <p className="text-sm text-gray-500">Loading configuration...</p>
+        </div>
+      </div>
+    );
+  }
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -51,229 +104,241 @@ const LaunchTestStep = ({ config, onUpdate, onSave, loading }) => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-3">
-      <div className="text-center mb-3">
-        <h2 className="text-base font-bold text-gray-900 mb-0.5">Launch & Test</h2>
-        <p className="text-xs text-gray-600">
-          Run test calls, validate the configured flows, and deploy the live agent
+    <div className="space-y-8">
+      {/* Test & Launch Header */}
+      <div>
+        <h2 className="text-lg font-medium text-gray-900 mb-2">
+          Test & launch
+        </h2>
+        <p className="text-sm text-gray-500">
+          Test outbound flows and deploy live agent.
         </p>
       </div>
 
-      {/* Validation Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-          <FiCheckCircle className="w-4 h-4 mr-2" />
-          Validation Status
-        </h3>
-
-        <div className="flex items-center space-x-3 mb-3">
-          <div
-            className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-              config.validationStatus
-            )}`}
-          >
-            <div className="flex items-center space-x-1.5">
-              {React.createElement(getStatusIcon(config.validationStatus), {
-                className: "w-3.5 h-3.5",
-              })}
-              <span className="capitalize">{config.validationStatus}</span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => handleChange("validationStatus", "validated")}
-            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs"
-          >
-            Run Validation
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-lg font-bold text-gray-900">
-              {config.testCallsCompleted}
-            </div>
-            <div className="text-xs text-gray-600">Test Calls</div>
-          </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-lg font-bold text-green-600">✓</div>
-            <div className="text-xs text-gray-600">Configuration</div>
-          </div>
-          <div className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-lg font-bold text-blue-600">✓</div>
-            <div className="text-xs text-gray-600">Integration</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Test Calls */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-          <FiPlay className="w-4 h-4 mr-2" />
-          Test Calls
-        </h3>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-semibold text-gray-900 text-xs">Test Call #1</h4>
-              <p className="text-xs text-gray-600">
-                Verify agent greeting and basic flow
-              </p>
-            </div>
-            <button className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs">
-              Start Test
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-semibold text-gray-900 text-xs">Test Call #2</h4>
-              <p className="text-xs text-gray-600">
-                Test objection handling responses
-              </p>
-            </div>
-            <button className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs">
-              Start Test
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div>
-              <h4 className="font-semibold text-gray-900 text-xs">Test Call #3</h4>
-              <p className="text-xs text-gray-600">
-                Validate discount and offer logic
-              </p>
-            </div>
-            <button className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs">
-              Start Test
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Deployment Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-          <FiSettings className="w-4 h-4 mr-2" />
-          Deployment Status
-        </h3>
-
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div
-              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDeploymentStatusColor(
-                config.deploymentStatus
-              )}`}
-            >
-              <span className="capitalize">{config.deploymentStatus}</span>
-            </div>
-            <p className="text-xs text-gray-600 mt-1">
-              {config.deploymentStatus === "draft" &&
-                "Agent is in draft mode and not making calls"}
-              {config.deploymentStatus === "testing" &&
-                "Agent is in testing mode with limited calls"}
-              {config.deploymentStatus === "live" &&
-                "Agent is live and making calls to customers"}
-              {config.deploymentStatus === "paused" &&
-                "Agent is paused and not making calls"}
-            </p>
-          </div>
-
-          <div className="flex space-x-2">
-            <button
-              onClick={() => handleChange("deploymentStatus", "testing")}
-              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs"
-            >
-              Deploy to Testing
-            </button>
-            <button
-              onClick={() => handleChange("deploymentStatus", "live")}
-              className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-xs"
-            >
-              Go Live
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Test Results */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
-          <FiBarChart2 className="w-4 h-4 mr-2" />
-          Test Results
-        </h3>
-
-        {config.testResults && config.testResults.length > 0 ? (
-          <div className="space-y-2">
-            {config.testResults.map((result, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg"
-              >
-                <div>
-                  <h4 className="font-semibold text-gray-900 text-xs">
-                    {result.testType}
-                  </h4>
-                  <p className="text-xs text-gray-600">{result.notes}</p>
-                  <p className="text-[10px] text-gray-500">
-                    {new Date(result.timestamp).toLocaleString()}
-                  </p>
-                </div>
-                <div
-                  className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    result.status === "passed"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-red-100 text-red-800"
-                  }`}
-                >
-                  {result.status}
-                </div>
+      {/* Agent Cards Section */}
+      <div className="space-y-3">
+        {/* First Agent Card */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                <FiUser className="w-4 h-4 text-gray-600" />
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-gray-500">
-            <FiBarChart2 className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="text-xs">No test results yet. Run some test calls to see results here.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Final Actions */}
-      <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-3">
-          Ready to Launch?
-        </h3>
-        <p className="text-xs text-blue-700 mb-3">
-          Your agent configuration is complete! Review all settings and click
-          the button below to save and deploy your agent.
-        </p>
-
-        <div className="flex space-x-3">
-          <button
-            onClick={onSave}
-            disabled={loading}
-            className="px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 text-xs"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                <span>Saving...</span>
-              </>
+              <div>
+                  <h4 className="text-sm font-semibold text-gray-900">{agentConfig.agentName}</h4>
+                <p className="text-xs text-gray-500">
+                  {agentConfig.language}
+                </p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                    <span className="text-xs text-gray-500">Abondoned Checkout agent</span>
+                  </div>
+              </div>
+            </div>
+            {!hasNumbers || numbers.length === 0 ? (
+              <button
+                onClick={() => setShowTwilioModal(true)}
+                className="px-3 py-1.5 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors text-xs font-medium"
+              >
+                Connect Phone
+              </button>
             ) : (
-              <>
-                <FiCheckCircle className="w-3.5 h-3.5" />
-                <span>Save & Deploy Agent</span>
-              </>
+              <div className="text-xs text-gray-500">
+                {selectedPhoneNumber?.phoneNumber
+                  ? selectedPhoneNumber.phoneNumber
+                  : "Select number below"}
+              </div>
             )}
-          </button>
+          </div>
+        </div>
 
-          <button className="px-5 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-xs">
-            Save as Draft
-          </button>
+        {/* Second Agent Card */}
+        <div className="bg-purple-50 rounded-lg border border-purple-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                <FiUser className="w-4 h-4 text-purple-600" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900">{agentConfig.agentName}</h4>
+               
+               
+              </div>
+            </div>
+            <button className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-xs font-medium">
+              Test Agent
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Connected Phone Numbers Section */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-medium text-gray-900">
+          Connected phone numbers
+        </h3>
+        <p className="text-xs text-gray-500">
+          Choose a phone number from the Agent so that your agent can call from
+          connected to respective text.
+        </p>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          {hasNumbers && numbers.length > 0 ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-900">
+                <span className="font-medium">Available Numbers:</span>
+              </div>
+              <select
+                value={selectedPhoneNumber?._id || ""}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  const number = numbers.find((n) => n._id === selectedId);
+                  handleNumberSelect(number);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
+              >
+                <option value="">Select a phone number</option>
+                {numbers.map((number) => (
+                  <option key={number._id} value={number._id}>
+                    {number.phoneNumber} ({number.type})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 italic">
+              No phone numbers connected
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Connected Knowledge Base Section - Disabled for now */}
+      <div className="space-y-4 opacity-50 pointer-events-none">
+        <h3 className="text-sm font-medium text-gray-900">
+          Connected knowledge base
+        </h3>
+        <p className="text-xs text-gray-500">
+          Choose a knowledge base from the Agent so that your agent can call
+          from connected to respective text.
+        </p>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-900">
+              <span className="font-medium">Coming Soon...</span>
+            </div>
+            <button
+              disabled
+              className="px-3 py-1.5 bg-gray-100 border border-gray-300 text-gray-400 rounded-md cursor-not-allowed text-xs font-medium"
+            >
+              Create New
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Policy Links Section */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-900">
+              Refund policy
+            </label>
+            <input
+              type="text"
+              value={config.policyLinks?.refundPolicy || ""}
+              onChange={(e) =>
+                handleChange("policyLinks", {
+                  ...config.policyLinks,
+                  refundPolicy: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
+              placeholder="Enter link here"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-900">
+              Cancellation policy
+            </label>
+            <input
+              type="text"
+              value={config.policyLinks?.cancellationPolicy || ""}
+              onChange={(e) =>
+                handleChange("policyLinks", {
+                  ...config.policyLinks,
+                  cancellationPolicy: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
+              placeholder="Enter link here"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-900">
+              Shipping policy
+            </label>
+            <input
+              type="text"
+              value={config.policyLinks?.shippingPolicy || ""}
+              onChange={(e) =>
+                handleChange("policyLinks", {
+                  ...config.policyLinks,
+                  shippingPolicy: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
+              placeholder="Enter link here"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-900">
+              Terms and conditions
+            </label>
+            <input
+              type="text"
+              value={config.policyLinks?.termsAndConditions || ""}
+              onChange={(e) =>
+                handleChange("policyLinks", {
+                  ...config.policyLinks,
+                  termsAndConditions: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
+              placeholder="Enter link here"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-900">
+              Warranty
+            </label>
+            <input
+              type="text"
+              value={config.policyLinks?.warranty || ""}
+              onChange={(e) =>
+                handleChange("policyLinks", {
+                  ...config.policyLinks,
+                  warranty: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-500 text-sm"
+              placeholder="Enter link here"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Twilio Connect Modal */}
+      <TwilioConnectionModal
+        isOpen={showTwilioModal}
+        onClose={() => setShowTwilioModal(false)}
+        onConnect={handleTwilioConnect}
+      />
     </div>
   );
 };

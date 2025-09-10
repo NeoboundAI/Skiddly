@@ -7,7 +7,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 
 import ShopifyConnectModal from "@/components/ShopifyConnectModal";
 import TwilioConnectionModal from "@/components/TwilioConnectionModal";
-import Toast from "@/components/Toast";
+import toast from "react-hot-toast";
 import { FiShoppingBag, FiPhone, FiUser, FiBox } from "react-icons/fi";
 import useShopStore from "@/stores/shopStore";
 import { useShopConnection } from "@/hooks/useShops";
@@ -28,11 +28,6 @@ const DashboardPage = () => {
   const router = useRouter();
   const [showShopifyModal, setShowShopifyModal] = useState(false);
   const [showTwilioModal, setShowTwilioModal] = useState(false);
-  const [toast, setToast] = useState({
-    message: "",
-    type: "info",
-    isVisible: false,
-  });
   const [onboardingSteps, setOnboardingSteps] = useState([
     {
       id: 1,
@@ -105,18 +100,14 @@ const DashboardPage = () => {
       const webhookSkipped = urlParams.get("webhook_skipped");
 
       if (webhookSkipped === "true") {
-        setToast({
-          message:
-            "Shopify connected! Webhooks skipped in development. Set WEBHOOK_URL for full functionality.",
-          type: "warning",
-          isVisible: true,
-        });
+        toast(
+          "Shopify connected! Webhooks skipped in development. Set WEBHOOK_URL for full functionality.",
+          {
+            icon: "⚠️",
+          }
+        );
       } else {
-        setToast({
-          message: "Shopify connected successfully!",
-          type: "success",
-          isVisible: true,
-        });
+        toast.success("Shopify connected successfully!");
       }
 
       // Clear the URL parameter
@@ -149,11 +140,7 @@ const DashboardPage = () => {
       }
 
       console.error("Shopify connection error:", errorMessage);
-      setToast({
-        message: errorMessage,
-        type: "error",
-        isVisible: true,
-      });
+      toast.error(errorMessage);
 
       // Clear the URL parameter
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -167,18 +154,12 @@ const DashboardPage = () => {
       // Update the numbers after connection
       await updateNumbersAfterConnection();
 
-      setToast({
-        message: `Twilio connected successfully! Number: ${numberData.phoneNumber}`,
-        type: "success",
-        isVisible: true,
-      });
+      toast.success(
+        `Twilio connected successfully! Number: ${numberData.phoneNumber}`
+      );
     } catch (error) {
       console.error("Error connecting Twilio:", error);
-      setToast({
-        message: "Failed to connect Twilio. Please try again.",
-        type: "error",
-        isVisible: true,
-      });
+      toast.error("Failed to connect Twilio. Please try again.");
     }
   };
 
@@ -240,8 +221,8 @@ const DashboardPage = () => {
           <h1 className="text-2xl border-b border-[#EAECF0] font-semibold text-[#000000] pb-6  mb-4">
             Home
           </h1>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6 pt-0">
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 pt-0">
           <div className="flex items-left flex-col justify-center space-x-2 mb-6">
             <p className="text-2xl text-[#000000] font-semibold">
               Hi {session?.user?.name?.split(" ")[0] || "User"}!
@@ -250,10 +231,9 @@ const DashboardPage = () => {
               Start setting up your store
             </p>
           </div>
-      
 
-        {/* Scrollable Content */}
-       
+          {/* Scrollable Content */}
+
           {/* Plan Information */}
           {session?.user?.plan && (
             <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
@@ -350,14 +330,6 @@ const DashboardPage = () => {
         isOpen={showTwilioModal}
         onClose={() => setShowTwilioModal(false)}
         onConnect={handleTwilioConnect}
-      />
-
-      {/* Toast Notification */}
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.isVisible}
-        onClose={() => setToast({ ...toast, isVisible: false })}
       />
     </DashboardLayout>
   );

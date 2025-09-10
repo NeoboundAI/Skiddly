@@ -367,10 +367,22 @@ const defaultAgentSchema = new mongoose.Schema(
           language: "English (US)",
           voiceProvider: "vapi",
           voiceName: "sarah-professional-female",
-          greetingStyle: "standard",
-          greetingTemplate:
-            "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet.",
-          customGreeting: "",
+          greetingStyle: {
+            standard: {
+              enabled: true,
+              template:
+                "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet. Is this a good time to talk for a minute?",
+            },
+            casual: {
+              enabled: false,
+              template:
+                "Hey [Name]! I'm [Agent] from [Store]. I saw you were looking at [Product] - want to chat about it?",
+            },
+            custom: {
+              enabled: false,
+              template: "",
+            },
+          },
         },
 
         // Step 6: Objection Handling defaults - All 8 conditions from VAPI

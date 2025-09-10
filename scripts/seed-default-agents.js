@@ -122,12 +122,12 @@ const defaultAgents = [
     defaultConfiguration: {
       // Step 1: Store Profile
       storeProfile: {
-        storeName: "Your Store",
-        storeUrl: "your-store.myshopify.com",
-        tagline: "Quality products for everyone",
-        supportEmail: "support@yourstore.com",
-        phoneNumber: "+1 (555) 123-4567",
-        businessAddress: "123 Main St, City, State 12345",
+        storeName: "",
+        storeUrl: "",
+        tagline: "",
+        supportEmail: "",
+        phoneNumber: "",
+        businessAddress: "",
         businessHours: {
           monday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
           tuesday: { isOpen: true, startTime: "09:00", endTime: "18:00" },
@@ -138,10 +138,9 @@ const defaultAgents = [
           sunday: { isOpen: false, startTime: "09:00", endTime: "18:00" },
         },
         supportChannels: ["Email", "Phone", "Chat"],
-        storeDescription:
-          "We offer high-quality products with excellent customer service and fast shipping.",
+        storeDescription: "",
         storeCategory: "",
-        fulfillmentMethod: ["shipping", "pickup"],
+        fulfillmentMethod: ["shipping"],
       },
 
       // Step 2: Commerce Settings
@@ -198,8 +197,7 @@ const defaultAgents = [
           selected: [],
         },
         guestCheckoutEnabled: true,
-        additionalNotes:
-          "Apple Pay available on iOS devices, Google Pay on Android",
+        additionalNotes: "",
       },
 
       // Step 3: Call Logic
@@ -213,7 +211,7 @@ const defaultAgents = [
           },
           {
             type: "customer-type",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
@@ -231,19 +229,19 @@ const defaultAgents = [
           },
           {
             type: "location",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
           {
             type: "coupon-code",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
           {
             type: "payment-method",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
@@ -255,9 +253,9 @@ const defaultAgents = [
           retryIntervals: [
             {
               attempt: 1,
-              delay: 0,
+              delay: 30,
               delayUnit: "minutes",
-              description: "Immediately (as per your configuration)",
+              description: "After 30 minutes after abondoned cart",
             },
             {
               attempt: 2,
@@ -293,9 +291,9 @@ const defaultAgents = [
           weekendCalling: false,
           callTimeStart: "09:00",
           callTimeEnd: "18:00",
-          timezone: "America/New_York",
-          respectDND: true,
-          voicemailDetection: true,
+          timezone: "",
+          respectDND: false,
+          voicemailDetection: false,
         },
       },
 
@@ -331,10 +329,22 @@ const defaultAgents = [
         language: "English (US)",
         voiceProvider: "vapi",
         voiceName: "sarah-professional-female",
-        greetingStyle: "standard",
-        greetingTemplate:
-          "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet.",
-        customGreeting: "",
+        greetingStyle: {
+          standard: {
+            enabled: true,
+            template:
+              "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet. Is this a good time to talk for a minute?",
+          },
+          casual: {
+            enabled: false,
+            template:
+              "Hey [Name]! I'm [Agent] from [Store]. I saw you were looking at [Product] - want to chat about it?",
+          },
+          custom: {
+            enabled: false,
+            template: "",
+          },
+        },
       },
 
       // Step 6: Objection Handling - All 8 conditions from VAPI with default/custom structure
@@ -546,7 +556,7 @@ const defaultAgents = [
         conditions: [
           {
             type: "customer-type",
-            operator: "is",
+            operator: "includes",
             value: "all",
             enabled: true,
           },
@@ -616,10 +626,22 @@ const defaultAgents = [
         language: "English (US)",
         voiceProvider: "vapi",
         voiceName: "mike-friendly-male",
-        greetingStyle: "casual",
-        greetingTemplate:
-          "Hey [Name]! It's [Agent] from [Store]. Saw you were checking out some items - want to finish up real quick?",
-        customGreeting: "",
+        greetingStyle: {
+          standard: {
+            enabled: false,
+            template:
+              "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet. Is this a good time to talk for a minute?",
+          },
+          casual: {
+            enabled: true,
+            template:
+              "Hey [Name]! It's [Agent] from [Store]. Saw you were checking out some items - want to finish up real quick?",
+          },
+          custom: {
+            enabled: false,
+            template: "",
+          },
+        },
       },
 
       // Step 6: Objection Handling - All 8 conditions from VAPI with default/custom structure
@@ -837,7 +859,7 @@ const defaultAgents = [
           },
           {
             type: "customer-type",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
@@ -855,19 +877,19 @@ const defaultAgents = [
           },
           {
             type: "location",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
           {
             type: "coupon-code",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
           {
             type: "payment-method",
-            operator: "is",
+            operator: "includes",
             value: [],
             enabled: false,
           },
@@ -955,10 +977,22 @@ const defaultAgents = [
         language: "English (US)",
         voiceProvider: "vapi",
         voiceName: "emma-warm-female",
-        greetingStyle: "custom",
-        greetingTemplate: "",
-        customGreeting:
-          "Hello [Name], this is Emma from [Store]. I noticed you have some premium items in your cart and I wanted to personally assist you with completing your purchase. As a valued customer, I'm here to ensure you have an exceptional experience.",
+        greetingStyle: {
+          standard: {
+            enabled: true,
+            template:
+              "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet. Is this a good time to talk for a minute?",
+          },
+          casual: {
+            enabled: false,
+            template:
+              "Hey [Name]! I'm [Agent] from [Store]. I saw you were looking at [Product] - want to chat about it?",
+          },
+          custom: {
+            enabled: false,
+            template: "",
+          },
+        },
       },
 
       // Step 6: Objection Handling

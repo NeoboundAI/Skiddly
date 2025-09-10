@@ -116,20 +116,27 @@ export async function POST(request) {
           },
         }
       );
-
+      console.log("vapiResponse", vapiResponse);
       if (vapiResponse.ok) {
         const vapiAgent = await vapiResponse.json();
+
+        console.log("vapiAgent", vapiAgent);
         vapiConfiguration = {
+          // Voice configuration
           voice: vapiAgent.voice,
-          model: {
-            model: vapiAgent.model.model,
-            provider: vapiAgent.model.provider,
-            messages: vapiAgent.model.messages, // Include the messages array
-          },
+
+          // Model configuration
+          model: vapiAgent.model,
+
+          // Basic messages
           firstMessage: vapiAgent.firstMessage,
           voicemailMessage: vapiAgent.voicemailMessage,
           endCallMessage: vapiAgent.endCallMessage,
+
+          // Transcriber configuration
           transcriber: vapiAgent.transcriber,
+
+          // Server configuration
           isServerUrlSecretSet: vapiAgent.isServerUrlSecretSet,
         };
 
@@ -241,9 +248,17 @@ export async function POST(request) {
       voiceName:
         vapiConfiguration?.voice?.voiceId ||
         defaultAgent.defaultConfiguration.agentPersona.voiceName,
-      greetingTemplate:
-        extractedGreetingTemplate ||
-        defaultAgent.defaultConfiguration.agentPersona.greetingTemplate,
+      greetingStyle: {
+        ...defaultAgent.defaultConfiguration.agentPersona.greetingStyle,
+        standard: {
+          ...defaultAgent.defaultConfiguration.agentPersona.greetingStyle
+            .standard,
+          template:
+            extractedGreetingTemplate ||
+            defaultAgent.defaultConfiguration.agentPersona.greetingStyle
+              .standard.template,
+        },
+      },
     };
 
     // Update objection handling with extracted responses
@@ -260,7 +275,7 @@ export async function POST(request) {
     // Create new agent from template
     const agent = new Agent({
       userId: user._id,
-      assistantId: defaultAgent.assistantId,
+      assistantId: "",
       name: defaultAgent.name,
       type: defaultAgent.type,
       status: "draft", // Start as draft

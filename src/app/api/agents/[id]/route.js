@@ -12,9 +12,11 @@ import {
 } from "@/lib/apiLogger";
 
 export async function GET(request, { params }) {
+  let session;
+  let id;
   try {
     // Get user session
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       logAuthFailure(
@@ -45,7 +47,8 @@ export async function GET(request, { params }) {
     }
 
     // Await params before destructuring
-    const { id } = await params;
+    const resolvedParams = await params;
+    id = resolvedParams.id;
 
     // Find the agent and ensure it belongs to the user
     const agent = await Agent.findOne({
@@ -83,7 +86,7 @@ export async function GET(request, { params }) {
     });
   } catch (error) {
     logApiError("GET", "/api/agents/[id]", 500, error, session?.user, {
-      agentId: params?.id,
+      agentId: id,
     });
     return NextResponse.json(
       { error: "Failed to fetch agent" },
@@ -93,9 +96,11 @@ export async function GET(request, { params }) {
 }
 
 export async function PUT(request, { params }) {
+  let session;
+  let id;
   try {
     // Get user session
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       logAuthFailure(
@@ -126,7 +131,8 @@ export async function PUT(request, { params }) {
     }
 
     // Await params before destructuring
-    const { id } = await params;
+    const resolvedParams = await params;
+    id = resolvedParams.id;
     const body = await request.json();
 
     // Find the agent and ensure it belongs to the user
@@ -171,7 +177,7 @@ export async function PUT(request, { params }) {
     });
   } catch (error) {
     logApiError("PUT", "/api/agents/[id]", 500, error, session?.user, {
-      agentId: params?.id,
+      agentId: id,
     });
     return NextResponse.json(
       { error: "Failed to update agent" },
