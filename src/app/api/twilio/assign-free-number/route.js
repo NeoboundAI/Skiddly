@@ -5,6 +5,13 @@ import connectDB from "../../../../lib/mongodb";
 import TwilioNumber from "../../../../models/TwilioNumber";
 import DefaultNumber from "../../../../models/DefaultNumber";
 import User from "../../../../models/User";
+import {
+  logApiError,
+  logApiSuccess,
+  logAuthFailure,
+  logDbOperation,
+  logBusinessEvent,
+} from "@/lib/apiLogger";
 
 export async function POST(req) {
   try {
@@ -12,6 +19,12 @@ export async function POST(req) {
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
+      logAuthFailure(
+        "POST",
+        "/api/twilio/assign-free-number",
+        null,
+        "No session or user email"
+      );
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
@@ -21,6 +34,16 @@ export async function POST(req) {
     const { phoneNumber, sid } = await req.json();
 
     if (!phoneNumber || !sid) {
+      logApiError(
+        "POST",
+        "/api/twilio/assign-free-number",
+        400,
+        new Error("Phone number and SID are required"),
+        session.user.id,
+        {
+          missingFields: { phoneNumber: !phoneNumber, sid: !sid },
+        }
+      );
       return NextResponse.json(
         { success: false, message: "Phone number and SID are required" },
         { status: 400 }
@@ -30,23 +53,47 @@ export async function POST(req) {
     // Get user
     const user = await User.findOne({ email: session.user.email });
     if (!user) {
+      logAuthFailure(
+        "POST",
+        "/api/twilio/assign-free-number",
+        session.user,
+        "User not found in database"
+      );
       return NextResponse.json(
         { success: false, message: "User not found" },
         { status: 404 }
       );
     }
 
-    // Check if user already has a number (one free number per user)
+    // Check if this specific number is already assigned to this user (prevent duplicates)
     const existingNumber = await TwilioNumber.findOne({
       userId: user._id,
+      phoneNumber: phoneNumber,
+      sid: sid,
       isActive: true,
     });
     if (existingNumber) {
+      logApiError(
+        "POST",
+        "/api/twilio/assign-free-number",
+        400,
+        new Error("User already has this specific number assigned"),
+        session.user,
+        {
+          existingNumberId: existingNumber._id.toString(),
+          phoneNumber: existingNumber.phoneNumber,
+        }
+      );
       return NextResponse.json(
-        { success: false, message: "User already has an active number" },
+        { success: false, message: "You already have this number assigned" },
         { status: 400 }
       );
     }
+
+    logDbOperation("read", "TwilioNumber", session.user, {
+      operation: "check_existing_number_assignment",
+      hasExistingNumber: !!existingNumber,
+    });
 
     // Get the default number data to extract VAPI information
     const defaultNumber = await DefaultNumber.findOne({
@@ -56,11 +103,29 @@ export async function POST(req) {
     });
 
     if (!defaultNumber) {
+      logApiError(
+        "POST",
+        "/api/twilio/assign-free-number",
+        404,
+        new Error("Free number not found or not available"),
+        session.user,
+        {
+          phoneNumber,
+          sid,
+        }
+      );
       return NextResponse.json(
         { success: false, message: "Free number not found or not available" },
         { status: 404 }
       );
     }
+
+    logDbOperation("read", "DefaultNumber", session.user, {
+      operation: "find_default_number_for_assignment",
+      phoneNumber,
+      sid,
+      vapiNumberId: defaultNumber.vapiNumberId,
+    });
 
     // Create new number record with VAPI data
     const newNumber = await TwilioNumber.create({
@@ -79,8 +144,34 @@ export async function POST(req) {
       vapiStatus: defaultNumber.vapiStatus,
     });
 
-    // Note: We don't update the DefaultNumber status anymore
-    // This allows multiple users to use the same default number
+    logDbOperation("create", "TwilioNumber", session.user, {
+      numberId: newNumber._id.toString(),
+      phoneNumber,
+      type: "free",
+      maxCalls: 10,
+      vapiNumberId: defaultNumber.vapiNumberId,
+    });
+
+    logBusinessEvent("free_number_assigned", session.user, {
+      phoneNumber,
+      numberId: newNumber._id.toString(),
+      vapiNumberId: defaultNumber.vapiNumberId,
+      maxCalls: 10,
+    });
+
+    logApiSuccess(
+      "POST",
+      "/api/twilio/assign-free-number",
+      200,
+      session.user,
+      {
+        phoneNumber,
+        numberId: newNumber._id.toString(),
+      }
+    );
+
+    // Note: We don't update the DefaultNumber status
+    // Free numbers can be assigned to multiple users
     // The default number remains available for other users
 
     return NextResponse.json({
@@ -97,7 +188,17 @@ export async function POST(req) {
       },
     });
   } catch (error) {
-    console.error("Error assigning free number:", error);
+    logApiError(
+      "POST",
+      "/api/twilio/assign-free-number",
+      500,
+      error,
+      session?.user?.id,
+      {
+        phoneNumber: req.body?.phoneNumber,
+        sid: req.body?.sid,
+      }
+    );
     return NextResponse.json(
       { success: false, message: "Failed to assign number" },
       { status: 500 }

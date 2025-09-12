@@ -29,69 +29,133 @@ const agentSchema = new mongoose.Schema(
       enum: ["active", "inactive", "draft"],
       default: "draft",
     },
-    // Store configuration
-    configuration: {
-      storeName: String,
-      storeCategory: String,
+
+    // Step 1: Store Profile
+    storeProfile: {
+      // Store Identity
+      storeName: {
+        type: String,
+      },
+      storeUrl: {
+        type: String,
+      },
+      tagline: String,
+
+      // Contact Information
+      supportEmail: {
+        type: String,
+      },
+      phoneNumber: String,
+      businessAddress: String,
+      businessHours: {
+        monday: { isOpen: Boolean, startTime: String, endTime: String },
+        tuesday: { isOpen: Boolean, startTime: String, endTime: String },
+        wednesday: { isOpen: Boolean, startTime: String, endTime: String },
+        thursday: { isOpen: Boolean, startTime: String, endTime: String },
+        friday: { isOpen: Boolean, startTime: String, endTime: String },
+        saturday: { isOpen: Boolean, startTime: String, endTime: String },
+        sunday: { isOpen: Boolean, startTime: String, endTime: String },
+      },
+      supportChannels: [String],
+
+      // Store Details
       storeDescription: String,
-      agentName: String,
-      language: {
-        type: String,
-        default: "en-US",
+      storeCategory: String,
+
+      // Fulfillment Method
+      fulfillmentMethod: [String],
+    },
+
+    // Step 2: Commerce Settings
+    commerceSettings: {
+      checkoutProviders: {
+        options: [String],
+        selected: [String],
       },
-      voiceStyle: {
-        type: String,
-        default: "professional-female",
+      cardsAccepted: {
+        options: [String],
+        selected: [String],
       },
-      greeting: {
-        type: String,
-        default: "standard",
+      buyNowPayLater: {
+        options: [String],
+        selected: [String],
       },
-      customGreeting: String,
-      discountCode: String,
-      discountPercentage: String,
-      hasShippingDiscount: {
+      discountCategories: {
+        options: [String],
+        selected: [String],
+      },
+      shippingMethods: {
+        options: [String],
+        selected: [String],
+      },
+      guestCheckoutEnabled: {
         type: Boolean,
-        default: false,
+        default: true,
       },
-      shippingDiscountAmount: String,
-      hasPaymentPlans: {
-        type: Boolean,
-        default: false,
-      },
-      returnPolicy: {
-        type: String,
-        default: "30 days",
-      },
-      callTriggers: {
-        abandonedCart: {
-          type: Boolean,
-          default: true,
+      additionalNotes: String,
+    },
+
+    // Step 3: Call Logic
+    callLogic: {
+      // Call Conditions (AND/OR logic)
+      conditions: [
+        {
+          type: {
+            type: String,
+            enum: [
+              "cart-value",
+              "customer-type",
+              "products",
+              "previous-orders",
+              "location",
+              "coupon-code",
+              "payment-method",
+            ],
+          },
+          operator: {
+            type: String,
+            enum: [
+              ">=",
+              "<=",
+              ">",
+              "<",
+              "=",
+              "is",
+              "is not",
+              "includes",
+              "excludes",
+            ],
+          },
+          value: mongoose.Schema.Types.Mixed, // Can be string, number, or array
+          enabled: {
+            type: Boolean,
+            default: true,
+          },
         },
-        cartValueMin: String,
-        cartValueMax: String,
+      ],
+
+      // Call Schedule
+      callSchedule: {
         waitTime: {
           type: String,
-          default: "2",
+          default: "30",
         },
         waitTimeUnit: {
           type: String,
-          default: "hours",
+          default: "minutes",
         },
-      },
-      callSettings: {
         maxRetries: {
-          type: String,
-          default: "3",
+          type: Number,
+          default: 3,
         },
-        retryInterval: {
-          type: String,
-          default: "24",
-        },
-        retryIntervalUnit: {
-          type: String,
-          default: "hours",
-        },
+        retryIntervals: [
+          {
+            attempt: Number,
+            delay: Number,
+            delayUnit: String,
+            description: String,
+          },
+        ],
         weekendCalling: {
           type: Boolean,
           default: false,
@@ -117,97 +181,176 @@ const agentSchema = new mongoose.Schema(
           default: true,
         },
       },
-      objectionHandling: {
-        shipping: {
+    },
+
+    // Step 4: Offer Engine
+    offerEngine: {
+      availableDiscounts: {
+        enabled: {
           type: Boolean,
-          default: true,
+          default: false,
         },
-        price: {
-          type: Boolean,
-          default: true,
-        },
-        size: {
-          type: Boolean,
-          default: true,
-        },
-        payment: {
-          type: Boolean,
-          default: true,
-        },
-        technical: {
-          type: Boolean,
-          default: true,
-        },
-        comparison: {
-          type: Boolean,
-          default: true,
-        },
-        forgot: {
-          type: Boolean,
-          default: true,
-        },
-        shippingResponse: String,
-        priceResponse: String,
-        sizeResponse: String,
-        paymentResponse: String,
-        technicalResponse: String,
-        comparisonResponse: String,
-        forgotResponse: String,
+        selectedCodes: [String],
+        allCodes: [mongoose.Schema.Types.Mixed],
       },
-      enableSmartEscalation: {
-        type: Boolean,
-        default: false,
+      availableOffers: {
+        shippingDiscount: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          description: String,
+          customText: String,
+        },
+        paymentPlans: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          description: String,
+          customText: String,
+        },
       },
-      enableFollowUp: {
-        type: Boolean,
-        default: false,
+      returnPolicy: {
+        enabled: {
+          type: Boolean,
+          default: false,
+        },
+        days: {
+          type: Number,
+          default: 30,
+        },
+        description: String,
       },
     },
-    // VAPI Agent Configuration
-    vapiConfiguration: {
-      voice: {
-        voiceId: String,
-        provider: {
-          type: String,
-          default: "vapi",
+
+    // Step 5: Agent Persona
+    agentPersona: {
+      agentName: {
+        type: String,
+      },
+      language: {
+        type: String,
+        default: "English (US)",
+      },
+      voiceProvider: {
+        type: String,
+      },
+      voiceName: {
+        type: String,
+        default: "sarah-professional-female",
+      },
+      greetingStyle: {
+        standard: {
+          enabled: {
+            type: Boolean,
+            default: true,
+          },
+          template: {
+            type: String,
+            default:
+              "Hi [Name], this is [Agent] from [Store]. I noticed you picked out [Product] but didn't get to checkout yet. Is this a good time to talk for a minute?",
+          },
+        },
+        casual: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          template: {
+            type: String,
+            default:
+              "Hey [Name]! I'm [Agent] from [Store]. I saw you were looking at [Product] - want to chat about it?",
+          },
+        },
+        custom: {
+          enabled: {
+            type: Boolean,
+            default: false,
+          },
+          template: {
+            type: String,
+            default: "",
+          },
         },
       },
+    },
+
+    // Step 6: Objection Handling - All 8 conditions from VAPI with default/custom structure
+    objectionHandling: {
+      type: Object,
+      default: {},
+    },
+
+    // Step 7: Test & Launch
+    testLaunch: {
+      isLive: {
+        type: Boolean,
+        default: false,
+      },
+      connectedPhoneNumbers: [mongoose.Schema.Types.Mixed],
+      connectedKnowledgeBase: {
+        enabled: {
+          type: Boolean,
+          default: false,
+        },
+        selectedBases: [String],
+      },
+      policyLinks: {
+        refundPolicy: String,
+        cancellationPolicy: String,
+        shippingPolicy: String,
+        termsAndConditions: String,
+        warranty: String,
+      },
+    },
+
+    // VAPI Agent Configuration - Basic structure matching actual VAPI API response
+    vapiConfiguration: {
+      // Voice configuration
+      voice: {
+        model: String,
+        voiceId: String,
+        provider: String,
+        stability: Number,
+        similarityBoost: Number,
+      },
+
+      // Model configuration
       model: {
         model: String,
-        provider: {
-          type: String,
-          default: "openai",
+        messages: {
+          type: Array,
+          default: [],
         },
-        messages: [Object],
+        provider: String,
       },
+
+      // Basic messages
       firstMessage: String,
       voicemailMessage: String,
       endCallMessage: String,
+
+      // Transcriber configuration
       transcriber: {
-        model: {
-          type: String,
-          default: "nova-2",
-        },
-        language: {
-          type: String,
-          default: "en",
-        },
-        provider: {
-          type: String,
-          default: "deepgram",
-        },
+        model: String,
+        language: String,
+        provider: String,
       },
-      serverUrl: String,
+
+      // Server configuration
       isServerUrlSecretSet: {
         type: Boolean,
         default: false,
       },
     },
+
     // Shopify integration
     shopifyShopId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ShopifyShop",
     },
+
     // Analytics
     totalCalls: {
       type: Number,
@@ -235,7 +378,14 @@ const agentSchema = new mongoose.Schema(
 agentSchema.index({ userId: 1, type: 1 });
 agentSchema.index({ vapiAgentId: 1 });
 agentSchema.index({ assistantId: 1 });
+agentSchema.index({ shopifyShopId: 1 });
+agentSchema.index({ userId: 1, shopifyShopId: 1 }); // Compound index for user + shop queries
 
-const Agent = mongoose.models.Agent || mongoose.model("Agent", agentSchema);
+// Clear any existing model to avoid schema conflicts in development
+if (mongoose.models.Agent) {
+  delete mongoose.models.Agent;
+}
+
+const Agent = mongoose.model("Agent", agentSchema);
 
 export default Agent;

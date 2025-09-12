@@ -8,6 +8,37 @@ import { FiPlus, FiSettings, FiPhone, FiUser } from "react-icons/fi";
 import axios from "axios";
 import useShopStore from "@/stores/shopStore";
 
+const AGENT_TYPE_LABELS = {
+  "abandoned-cart": "Outbound",
+  "customer-support": "Inbound",
+};
+
+const AGENT_TYPE_DESC = {
+  "abandoned-cart":
+    "Calls leads who have abandoned their cart as per your instructions.",
+  "customer-support":
+    "Supports customers with their queries and provides support to them.",
+};
+
+const AGENT_TYPE_COLOR = {
+  "abandoned-cart": "bg-green-100 text-green-800",
+  "customer-support": "bg-blue-100 text-blue-800",
+  default: "bg-gray-100 text-gray-800",
+};
+
+const AGENT_STATUS_LABELS = {
+  active: "Live",
+  draft: "Draft",
+  inactive: "Inactive",
+};
+
+const AGENT_STATUS_COLOR = {
+  active: "bg-green-100 text-green-800",
+  draft: "bg-yellow-100 text-yellow-800",
+  inactive: "bg-gray-100 text-gray-800",
+  default: "bg-gray-100 text-gray-800",
+};
+
 const AgentPage = () => {
   const router = useRouter();
   const { selectedShop } = useShopStore();
@@ -31,14 +62,12 @@ const AgentPage = () => {
 
     try {
       setLoading(true);
-      const response = await axios.get("/api/agents");
+      // Use server-side filtering by shopId
+      const response = await axios.get(
+        `/api/agents?shopId=${selectedShop._id}`
+      );
       if (response.data.success) {
-        // Filter agents by the currently selected shop
-        // shopifyShopId is a populated object, so we need to compare _id
-        const filteredAgents = response.data.data.filter(
-          (agent) => agent.shopifyShopId?._id === selectedShop._id
-        );
-        setAgents(filteredAgents);
+        setAgents(response.data.data);
       } else {
         setError("Failed to fetch agents");
       }
@@ -54,22 +83,53 @@ const AgentPage = () => {
     router.push(`/agent/configure/${agentId}`);
   };
 
-  const handleToggleLive = async (agentId, currentStatus) => {
+  const handleToggleLive = async (agentId, currentIsLive) => {
     try {
-      // Update agent status
-      const newStatus = currentStatus === "active" ? "inactive" : "active";
-      await axios.put(`/api/agents/${agentId}`, { status: newStatus });
+      // Update agent testLaunch.isLive status
+      const newIsLive = !currentIsLive;
+      await axios.put(`/api/agents/${agentId}`, {
+        "testLaunch.isLive": newIsLive,
+      });
 
       // Refresh agents list
       fetchAgents();
     } catch (error) {
-      console.error("Error updating agent status:", error);
+      console.error("Error updating agent live status:", error);
     }
   };
 
-  const getAgentAvatar = (agentName) => {
-    // Generate avatar based on agent name
-    const initials = agentName
+  const getAgentAvatar = (agent) => {
+    // If agentPersona exists and has a voiceName, show avatar image, else initials
+    if (
+      agent.agentPersona &&
+      agent.agentPersona.voiceName &&
+      agent.agentPersona.voiceName.includes("female")
+    ) {
+      // Use a placeholder female avatar
+      return (
+        <img
+          src="/avatar-female.png"
+          alt={agent.agentPersona.agentName || agent.name}
+          className="w-12 h-12 rounded-full object-cover"
+        />
+      );
+    }
+    if (
+      agent.agentPersona &&
+      agent.agentPersona.voiceName &&
+      agent.agentPersona.voiceName.includes("male")
+    ) {
+      // Use a placeholder male avatar
+      return (
+        <img
+          src="/avatar-male.png"
+          alt={agent.agentPersona.agentName || agent.name}
+          className="w-12 h-12 rounded-full object-cover"
+        />
+      );
+    }
+    // Fallback: initials
+    const initials = (agent.agentPersona?.agentName || agent.name || "")
       .split(" ")
       .map((word) => word[0])
       .join("")
@@ -120,29 +180,36 @@ const AgentPage = () => {
   if (!selectedShop) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col h-screen">
-          <div className="flex w-full justify-between items-center border-b border-[#EAECF0] pb-4 mb-4">
-            <h1 className="text-2xl font-semibold text-[#000000]">Agents</h1>
-            <button
-              onClick={() => setShowAgentModal(true)}
-              className="bg-[#101828] text-white px-4 py-2 cursor-pointer rounded-md flex items-center gap-2"
-            >
-              <span>Add a new agent</span>
-              <FiPlus className="w-4 h-4" />
-            </button>
+        <div className="flex flex-col h-full">
+          {/* Fixed Header */}
+          <div className="flex-shrink-0 p-6 pb-0">
+            <div className="flex w-full justify-between items-center border-b border-[#EAECF0] pb-6 mb-4">
+              <h1 className="text-2xl font-semibold text-[#000000]">Agents</h1>
+              <button
+                onClick={() => setShowAgentModal(true)}
+                className="bg-[#101828] text-white px-4 py-2 cursor-pointer rounded-md flex items-center gap-2"
+              >
+                <span>Add a new agent</span>
+                <FiPlus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div className="flex flex-col gap-4 items-center justify-center w-full mt-30">
-            <img
-              src="/dropbox.png"
-              alt="agent"
-              className="w-[160px] h-[160px]"
-            />
-            <h2 className="text-2xl font-semibold text-[#000000]">
-              No Shop Selected
-            </h2>
-            <p className="text-gray-600 text-center">
-              Please select a Shopify shop to view and manage agents.
-            </p>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-6 pt-0">
+            <div className="flex flex-col gap-4 items-center justify-center w-full mt-30">
+              <img
+                src="/dropbox.png"
+                alt="agent"
+                className="w-[160px] h-[160px]"
+              />
+              <h2 className="text-2xl font-semibold text-[#000000]">
+                No Shop Selected
+              </h2>
+              <p className="text-gray-600 text-center">
+                Please select a Shopify shop to view and manage agents.
+              </p>
+            </div>
           </div>
         </div>
       </DashboardLayout>
@@ -151,173 +218,188 @@ const AgentPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col h-screen">
-        <div className="flex w-full justify-between items-center border-b border-[#EAECF0] pb-4 mb-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-[#000000]">Agents</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Managing agents for {selectedShop.shop}
-            </p>
-          </div>
-          <button
-            onClick={() => setShowAgentModal(true)}
-            className="bg-[#101828] text-white px-4 py-2 cursor-pointer rounded-md flex items-center gap-2"
-          >
-            <span>Add a new agent</span>
-            <FiPlus className="w-4 h-4" />
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        {agents.length === 0 ? (
-          <div className="flex flex-col gap-4 items-center justify-center w-full mt-30">
-            <img
-              src="/dropbox.png"
-              alt="agent"
-              className="w-[160px] h-[160px]"
-            />
-            <h2 className="text-2xl font-semibold text-[#000000]">
-              No agents Available
-            </h2>
-            <p className="text-gray-600 text-center">
-              No agents have been created for this shop yet.
-            </p>
+      <div className="flex flex-col h-full">
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 p-6 pb-0">
+          <div className="flex w-full justify-between items-center border-b border-[#EAECF0] pb-6 mb-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-[#000000]">Agents</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Managing agents for {selectedShop.shop}
+              </p>
+            </div>
             <button
               onClick={() => setShowAgentModal(true)}
-              className="border w-fit font-medium border-[#D0D5DD] cursor-pointer bg-white text-[#101828] px-4 py-2 rounded-md flex items-center gap-2"
+              className="bg-[#101828] text-white px-4 py-2 cursor-pointer rounded-md flex items-center gap-2"
             >
               <span>Add a new agent</span>
-              <FiPlus className="w-4 h-4 font-bold" />
+              <FiPlus className="w-4 h-4" />
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {agents.map((agent) => (
-              <div
-                key={agent._id}
-                className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6 pt-0">
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          {agents.length === 0 ? (
+            <div className="flex flex-col gap-4 items-center justify-center w-full mt-30">
+              <img
+                src="/dropbox.png"
+                alt="agent"
+                className="w-[160px] h-[160px]"
+              />
+              <h2 className="text-2xl font-semibold text-[#000000]">
+                No agents Available
+              </h2>
+              <p className="text-gray-600 text-center">
+                No agents have been created for this shop yet.
+              </p>
+              <button
+                onClick={() => setShowAgentModal(true)}
+                className="border w-fit font-medium border-[#D0D5DD] cursor-pointer bg-white text-[#101828] px-4 py-2 rounded-md flex items-center gap-2"
               >
-                {/* Agent Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    {getAgentAvatar(agent.name)}
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
-                        {agent.name}
-                      </h3>
+                <span>Add a new agent</span>
+                <FiPlus className="w-4 h-4 font-bold" />
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {agents.map((agent) => (
+                <div
+                  key={agent._id}
+                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                >
+                  {/* Agent Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      {getAgentAvatar(agent.name)}
+                      <div>
+                        <h3 className="font-semibold text-gray-900">
+                          {agent.name}
+                        </h3>
+                        <span
+                          className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(
+                            agent.type
+                          )}`}
+                        >
+                          {agent.type === "abandoned-cart"
+                            ? "Outbound"
+                            : "Inbound"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <span
-                        className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(
-                          agent.type
+                        className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                          agent.status
                         )}`}
                       >
-                        {agent.type === "abandoned-cart"
-                          ? "Outbound"
-                          : "Inbound"}
+                        {agent.status === "active"
+                          ? "Live"
+                          : agent.status === "draft"
+                          ? "Draft"
+                          : "Inactive"}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                        agent.status
-                      )}`}
-                    >
-                      {agent.status === "active"
-                        ? "Live"
-                        : agent.status === "draft"
-                        ? "Draft"
-                        : "Inactive"}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Agent Description */}
-                <p className="text-sm text-gray-600 mb-4">
-                  {agent.type === "abandoned-cart"
-                    ? "Calls leads who has abandoned their cart as per your instructions."
-                    : "Supports customer with their queries and provide support to them."}
-                </p>
+                  {/* Agent Description */}
+                  <p className="text-sm text-gray-600 mb-4">
+                    {agent.type === "abandoned-cart"
+                      ? "Calls leads who has abandoned their cart as per your instructions."
+                      : "Supports customer with their queries and provide support to them."}
+                  </p>
 
-                {/* Agent Details */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <FiPhone className="w-4 h-4" />
-                    <span>+91-7627216127</span>
+                  {/* Agent Details */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <FiPhone className="w-4 h-4" />
+                      <span>
+                        {agent.testLaunch?.connectedPhoneNumbers?.length > 0
+                          ? agent.testLaunch.connectedPhoneNumbers[0]
+                              ?.phoneNumber || "No Number"
+                          : "No Number"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <FiUser className="w-4 h-4" />
+                      <span>
+                        {agent.agentPersona?.language || "English (US)"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <FiUser className="w-4 h-4" />
-                    <span>Hindi / English</span>
-                  </div>
-                </div>
 
-                {/* Agent Stats */}
-                {agent.status === "active" && (
-                  <div className="mb-4">
-                    <span className="text-red-600 text-sm font-medium">
-                      3 issues
-                    </span>
-                  </div>
-                )}
+                  {/* Agent Stats */}
+                  {agent.status === "active" && (
+                    <div className="mb-4">
+                      <span className="text-red-600 text-sm font-medium">
+                        3 issues
+                      </span>
+                    </div>
+                  )}
 
-                {/* Live Toggle */}
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm text-gray-600">Live</span>
-                  <button
-                    onClick={() => handleToggleLive(agent._id, agent.status)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      agent.status === "active"
-                        ? "bg-purple-600"
-                        : "bg-gray-200"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        agent.status === "active"
-                          ? "translate-x-6"
-                          : "translate-x-1"
+                  {/* Live Toggle */}
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm text-gray-600">Live</span>
+                    <button
+                      onClick={() =>
+                        handleToggleLive(agent._id, agent.testLaunch?.isLive)
+                      }
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        agent.testLaunch?.isLive
+                          ? "bg-purple-600"
+                          : "bg-gray-200"
                       }`}
-                    />
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          agent.testLaunch?.isLive
+                            ? "translate-x-6"
+                            : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Configure Button */}
+                  <button
+                    onClick={() => handleConfigure(agent._id)}
+                    className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FiSettings className="w-4 h-4" />
+                    Configure
                   </button>
                 </div>
+              ))}
 
-                {/* Configure Button */}
+              {/* Build Your Agent Card */}
+              <div className="bg-white border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-purple-400 transition-colors cursor-pointer">
+                <div className="flex items-center justify-center mb-4">
+                  <div className="text-2xl">✨</div>
+                  <div className="text-2xl ml-2">✨</div>
+                </div>
+                <h3 className="font-semibold text-gray-900 text-center mb-2">
+                  Build your agent
+                </h3>
+                <p className="text-sm text-gray-600 text-center mb-4">
+                  Customize an agent from scratch, just the way you like it.
+                </p>
                 <button
-                  onClick={() => handleConfigure(agent._id)}
+                  onClick={() => setShowAgentModal(true)}
                   className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
                 >
                   <FiSettings className="w-4 h-4" />
                   Configure
                 </button>
               </div>
-            ))}
-
-            {/* Build Your Agent Card */}
-            <div className="bg-white border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-purple-400 transition-colors cursor-pointer">
-              <div className="flex items-center justify-center mb-4">
-                <div className="text-2xl">✨</div>
-                <div className="text-2xl ml-2">✨</div>
-              </div>
-              <h3 className="font-semibold text-gray-900 text-center mb-2">
-                Build your agent
-              </h3>
-              <p className="text-sm text-gray-600 text-center mb-4">
-                Customize an agent from scratch, just the way you like it.
-              </p>
-              <button
-                onClick={() => setShowAgentModal(true)}
-                className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-              >
-                <FiSettings className="w-4 h-4" />
-                Configure
-              </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <AgentSelectionModal

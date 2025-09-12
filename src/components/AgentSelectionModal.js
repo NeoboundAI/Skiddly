@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FiX } from "react-icons/fi";
 import axios from "axios";
+import useShopStore from "@/stores/shopStore";
 
 // Placeholder avatar for agent cards
 const AgentAvatar = () => (
@@ -25,6 +26,7 @@ const categories = [
 
 const AgentSelectionModal = ({ isOpen, onClose }) => {
   const router = useRouter();
+  const { selectedShop } = useShopStore();
   const [selectedAgentId, setSelectedAgentId] = useState(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [defaultAgents, setDefaultAgents] = useState([]);
@@ -70,11 +72,17 @@ const AgentSelectionModal = ({ isOpen, onClose }) => {
 
   const handleContinue = async () => {
     if (selectedAgentId) {
+      if (!selectedShop) {
+        setError("Please select a shop before creating an agent");
+        return;
+      }
+
       try {
         setLoading(true);
-        // Create agent from template
+        // Create agent from template with selected shop
         const response = await axios.post("/api/agents/create-from-template", {
           assistantId: selectedAgentId,
+          shopifyShopId: selectedShop._id,
         });
 
         if (response.data.success) {

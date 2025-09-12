@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import { logApiError, logApiSuccess, logDbOperation } from "@/lib/apiLogger";
 
 export async function POST(req) {
   try {
@@ -8,6 +9,13 @@ export async function POST(req) {
 
     // Input validation
     if (!email) {
+      logApiError(
+        "POST",
+        "/api/auth/check-email",
+        400,
+        new Error("Email is required"),
+        null
+      );
       return NextResponse.json(
         { message: "Email is required" },
         { status: 400 }
@@ -16,7 +24,18 @@ export async function POST(req) {
 
     // Email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!emailRegex.test(trimmedEmail)) {
+      logApiError(
+        "POST",
+        "/api/auth/check-email",
+        400,
+        new Error("Invalid email format"),
+        null,
+        {
+          email: trimmedEmail,
+        }
+      );
       return NextResponse.json(
         { message: "Invalid email format" },
         { status: 400 }
@@ -27,8 +46,26 @@ export async function POST(req) {
 
     // Check if user already exists
     const existingUser = await User.findOne({
-      email: email.trim().toLowerCase(),
+      email: trimmedEmail,
     });
+
+    logDbOperation("read", "User", existingUser?._id?.toString() || null, {
+      operation: "check_email_availability",
+      email: trimmedEmail,
+      exists: !!existingUser,
+    });
+
+    logApiSuccess(
+      "POST",
+      "/api/auth/check-email",
+      200,
+      existingUser?._id?.toString() || null,
+      {
+        email: trimmedEmail,
+        exists: !!existingUser,
+        available: !existingUser,
+      }
+    );
 
     return NextResponse.json(
       {
@@ -41,7 +78,9 @@ export async function POST(req) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Email check error:", error);
+    logApiError("POST", "/api/auth/check-email", 500, error, null, {
+      email: req.body?.email,
+    });
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

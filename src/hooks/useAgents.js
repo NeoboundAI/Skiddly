@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // Fetch agents
-export const useAgents = () => {
+export const useAgents = (shopId = null) => {
   return useQuery({
-    queryKey: ["agents"],
+    queryKey: ["agents", shopId],
     queryFn: async () => {
-      const response = await fetch("/api/agents");
+      const url = shopId ? `/api/agents?shopId=${shopId}` : "/api/agents";
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch agents");
       }

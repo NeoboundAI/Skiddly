@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { exchangeCodeForToken } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import ShopifyShop from "@/models/ShopifyShop";
+import {
+  logApiError,
+  logApiSuccess,
+  logBusinessEvent,
+  logDbOperation,
+  logExternalApi,
+  logExternalApiError,
+} from "@/lib/apiLogger";
 
 export async function GET(request) {
   try {
@@ -12,17 +22,32 @@ export async function GET(request) {
     const state = searchParams.get("state");
     const error = searchParams.get("error");
 
-    console.log("code", code);
-    console.log("shop", shop);
-    console.log("state", state);
-    console.log("error", error);
+    // Get session for user identification
+    const session = await getServerSession(authOptions);
+    const userInfo = session?.user || null;
+
+    logBusinessEvent("shopify_callback_received", userInfo, {
+      shop,
+      state,
+      hasCode: !!code,
+      hasError: !!error,
+    });
 
     if (error) {
       // Clean up any incomplete connection for this state
       if (state) {
         await connectDB();
         await ShopifyShop.deleteMany({ oauthState: state });
+        logDbOperation("delete", "ShopifyShop", userInfo, {
+          reason: "cleanup_on_error",
+          state,
+        });
       }
+      logBusinessEvent("shopify_callback_error", userInfo, {
+        error,
+        shop,
+        state,
+      });
       return NextResponse.redirect(
         `${process.env.NEXTAUTH_URL}/dashboard?error=shopify_auth_denied`
       );
@@ -33,7 +58,23 @@ export async function GET(request) {
       if (state) {
         await connectDB();
         await ShopifyShop.deleteMany({ oauthState: state });
+        logDbOperation("delete", "ShopifyShop", userInfo, {
+          reason: "cleanup_invalid_params",
+          state,
+        });
       }
+      logApiError(
+        "GET",
+        "/api/shopify/callback",
+        400,
+        new Error("Invalid callback parameters"),
+        userInfo,
+        {
+          hasCode: !!code,
+          hasShop: !!shop,
+          hasState: !!state,
+        }
+      );
       return NextResponse.redirect(
         `${process.env.NEXTAUTH_URL}/dashboard?error=invalid_callback_params`
       );
@@ -44,7 +85,16 @@ export async function GET(request) {
     // Find shop connection by state (stored during OAuth initiation)
     const shopConnection = await ShopifyShop.findOne({ oauthState: state });
     if (!shopConnection) {
-      console.error("No shop connection found with state:", state);
+      logApiError(
+        "GET",
+        "/api/shopify/callback",
+        404,
+        new Error("No shop connection found with state"),
+        userInfo,
+        {
+          state,
+        }
+      );
       // Clean up any stale connections for this state
       await ShopifyShop.deleteMany({ oauthState: state });
       return NextResponse.redirect(
@@ -55,19 +105,33 @@ export async function GET(request) {
     // Get the user
     const user = await User.findById(shopConnection.userId);
     if (!user) {
-      console.error(
-        "User not found for shop connection:",
-        shopConnection.userId
+      logApiError(
+        "GET",
+        "/api/shopify/callback",
+        404,
+        new Error("User not found for shop connection"),
+        userInfo,
+        {
+          userId: shopConnection.userId,
+          shop,
+        }
       );
       return NextResponse.redirect(
         `${process.env.NEXTAUTH_URL}/dashboard?error=user_not_found`
       );
     }
 
+    // Create user info object for logging
+    const userInfoForLogging = { id: user._id.toString(), email: user.email };
+
     // Exchange authorization code for access token
+    logExternalApi("Shopify", "exchange_code_for_token", userInfoForLogging, {
+      shop,
+    });
+
     const tokenResponse = await exchangeCodeForToken(shop, code);
 
-    // Update shop connection with Shopify connection details
+    // Update shop connection with Shopify connection details (without shop info for now)
     await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
       accessToken: tokenResponse.access_token,
       scope: tokenResponse.scope,
@@ -77,7 +141,16 @@ export async function GET(request) {
       oauthNonce: null, // Clear the nonce
     });
 
-    console.log("Successfully connected Shopify for user:", user._id);
+    logDbOperation("update", "ShopifyShop", userInfoForLogging, {
+      shopId: shopConnection._id.toString(),
+      shop,
+      operation: "update_with_access_token",
+    });
+
+    logBusinessEvent("shopify_connection_success", userInfoForLogging, {
+      shop,
+      shopId: shopConnection._id.toString(),
+    });
 
     // Register webhooks automatically after successful connection
     try {
@@ -93,12 +166,10 @@ export async function GET(request) {
         if (process.env.WEBHOOK_URL) {
           webhookUrl = `${process.env.WEBHOOK_URL}/api/shopify/webhooks`;
         } else {
-          console.log(
-            "⚠️  Webhook registration skipped in development - HTTPS URL required"
-          );
-          console.log(
-            "💡 Set WEBHOOK_URL environment variable to your ngrok URL for development webhooks"
-          );
+          logBusinessEvent("shopify_webhook_skipped", userInfoForLogging, {
+            shop,
+            reason: "development_no_https",
+          });
 
           // Update shop connection to show webhook registration was skipped
           await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
@@ -131,6 +202,11 @@ export async function GET(request) {
       // Register webhooks using REST Admin API (more reliable)
       for (const topic of webhookTopics) {
         try {
+          logExternalApi("Shopify", "register_webhook", userInfoForLogging, {
+            shop,
+            topic,
+          });
+
           const webhookResponse = await fetch(
             `https://${shop}/admin/api/${
               process.env.SHOPIFY_VERSION || "2025-07"
@@ -153,12 +229,13 @@ export async function GET(request) {
 
           if (webhookResponse.ok) {
             const webhookData = await webhookResponse.json();
-            console.log(
-              `Webhook response for ${topic}:`,
-              JSON.stringify(webhookData, null, 2)
-            );
 
-            console.log(`Successfully registered webhook for ${topic}`);
+            logBusinessEvent("shopify_webhook_registered", userInfoForLogging, {
+              shop,
+              topic,
+              webhookId: webhookData.webhook?.id,
+            });
+
             registeredWebhooks.push({
               topic,
               status: "registered",
@@ -168,17 +245,29 @@ export async function GET(request) {
             webhookSuccessCount++;
           } else {
             const errorText = await webhookResponse.text();
-            console.error(
-              `Failed to register webhook for ${topic}:`,
-              `Status: ${webhookResponse.status}`,
-              `StatusText: ${webhookResponse.statusText}`,
-              `Response: ${errorText}`
+
+            logExternalApiError(
+              "Shopify",
+              "register_webhook",
+              new Error(`Failed to register webhook for ${topic}`),
+              userInfoForLogging,
+              {
+                shop,
+                topic,
+                status: webhookResponse.status,
+                error: errorText,
+              }
             );
 
             // Check if webhook already exists
             if (errorText.includes("already been taken")) {
-              console.log(
-                `Webhook for ${topic} already exists - marking as registered`
+              logBusinessEvent(
+                "shopify_webhook_already_exists",
+                userInfoForLogging,
+                {
+                  shop,
+                  topic,
+                }
               );
               registeredWebhooks.push({
                 topic,
@@ -197,9 +286,15 @@ export async function GET(request) {
             }
           }
         } catch (webhookError) {
-          console.error(
-            `Error registering webhook for ${topic}:`,
-            webhookError
+          logExternalApiError(
+            "Shopify",
+            "register_webhook",
+            webhookError,
+            userInfoForLogging,
+            {
+              shop,
+              topic,
+            }
           );
           registeredWebhooks.push({
             topic,
@@ -216,11 +311,25 @@ export async function GET(request) {
         registeredWebhooks: registeredWebhooks,
       });
 
-      console.log(
-        `Webhook registration completed. ${webhookSuccessCount}/${webhookTopics.length} webhooks active.`
+      logBusinessEvent(
+        "shopify_webhook_registration_completed",
+        userInfoForLogging,
+        {
+          shop,
+          successCount: webhookSuccessCount,
+          totalCount: webhookTopics.length,
+        }
       );
     } catch (webhookError) {
-      console.error("Error registering webhooks:", webhookError);
+      logExternalApiError(
+        "Shopify",
+        "register_webhooks",
+        webhookError,
+        userInfoForLogging,
+        {
+          shop,
+        }
+      );
       // Don't fail the connection if webhook registration fails
       // But still update shop connection to show webhook registration failed
       await ShopifyShop.findByIdAndUpdate(shopConnection._id, {
@@ -235,12 +344,98 @@ export async function GET(request) {
       });
     }
 
+    // Fetch shop info from Shopify API (after all other operations are complete)
+    try {
+      logExternalApi("Shopify", "fetch_shop_info", userInfoForLogging, {
+        shop,
+        accessToken: tokenResponse.access_token ? "present" : "missing",
+        scope: tokenResponse.scope,
+      });
+
+      const shopInfoResponse = await fetch(
+        `https://${shop}/admin/api/${
+          process.env.SHOPIFY_VERSION || "2025-07"
+        }/shop.json`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": tokenResponse.access_token,
+          },
+        }
+      );
+
+      if (shopInfoResponse.ok) {
+        const shopInfoData = await shopInfoResponse.json();
+        const shopifyShopInfo = shopInfoData.shop;
+
+        // Update shop connection with shop info
+        await ShopifyShop.findOneAndUpdate(
+          { _id: shopConnection._id },
+          {
+            $set: {
+              shopifyShopInfo: shopifyShopInfo,
+            },
+          },
+          {
+            new: true,
+            runValidators: true,
+          }
+        );
+
+        logBusinessEvent("shopify_shop_info_fetched", userInfoForLogging, {
+          shop,
+          shopId: shopifyShopInfo.id,
+          shopName: shopifyShopInfo.name,
+        });
+      } else {
+        const errorText = await shopInfoResponse.text();
+
+        logExternalApiError(
+          "Shopify",
+          "fetch_shop_info",
+          new Error(
+            `Failed to fetch shop info: ${shopInfoResponse.statusText}`
+          ),
+          userInfoForLogging,
+          {
+            shop,
+            status: shopInfoResponse.status,
+            error: errorText,
+          }
+        );
+      }
+    } catch (shopInfoError) {
+      logExternalApiError(
+        "Shopify",
+        "fetch_shop_info",
+        shopInfoError,
+        userInfoForLogging,
+        {
+          shop,
+        }
+      );
+      // Don't fail the connection if shop info fetch fails
+    }
+
+    logApiSuccess("GET", "/api/shopify/callback", 200, userInfoForLogging, {
+      shop,
+    });
+
     return NextResponse.redirect(
       `${process.env.NEXTAUTH_URL}/dashboard?success=shopify_connected`
     );
   } catch (error) {
-    console.error("Shopify callback error:", error);
+    // Get session for error logging
+    const session = await getServerSession(authOptions);
+    const userInfo = session?.user || null;
+
+    logApiError("GET", "/api/shopify/callback", 500, error, userInfo, {
+      shop: new URL(request.url).searchParams.get("shop"),
+      state: new URL(request.url).searchParams.get("state"),
+    });
     // Clean up incomplete connection on token exchange failure
+    const state = new URL(request.url).searchParams.get("state");
     if (state) {
       await ShopifyShop.deleteMany({ oauthState: state });
     }

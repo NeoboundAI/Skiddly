@@ -43,6 +43,11 @@ const shopifyShopSchema = new mongoose.Schema(
     // Store temporary state for OAuth flow
     oauthState: String,
     oauthNonce: String,
+    // Store complete shop info from Shopify API
+    shopifyShopInfo: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
     timestamps: true,

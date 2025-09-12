@@ -3,6 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../[...nextauth]/route";
 import connectDB from "../../../../lib/mongodb";
 import User from "../../../../models/User";
+import {
+  logApiError,
+  logApiSuccess,
+  logAuthFailure,
+  logDbOperation,
+  logBusinessEvent,
+} from "@/lib/apiLogger";
 
 export async function POST(request) {
   try {
@@ -10,12 +17,24 @@ export async function POST(request) {
 
     const session = await getServerSession(authOptions);
     if (!session) {
+      logAuthFailure("POST", "/api/auth/update-plan", null, "No session");
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const { plan } = await request.json();
 
     if (!plan || !["free", "infrasonic", "ultrasonic"].includes(plan)) {
+      logApiError(
+        "POST",
+        "/api/auth/update-plan",
+        400,
+        new Error("Invalid plan selected"),
+        session.user.id,
+        {
+          providedPlan: plan,
+          validPlans: ["free", "infrasonic", "ultrasonic"],
+        }
+      );
       return NextResponse.json(
         { message: "Invalid plan selected" },
         { status: 400 }
@@ -65,11 +84,41 @@ export async function POST(request) {
       },
       { new: true }
     );
-    console.log("Updated user:", updatedUser);
 
     if (!updatedUser) {
+      logApiError(
+        "POST",
+        "/api/auth/update-plan",
+        404,
+        new Error("User not found"),
+        session.user.id,
+        {
+          email: session.user.email,
+        }
+      );
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
+
+    logDbOperation("update", "User", session.user.id, {
+      operation: "update_plan",
+      previousPlan: updatedUser.plan,
+      newPlan: plan,
+      credits: planConfig.credits,
+    });
+
+    logBusinessEvent("plan_updated", session.user.id, {
+      email: updatedUser.email,
+      previousPlan: updatedUser.plan,
+      newPlan: plan,
+      credits: planConfig.credits,
+      planEndDate: planEndDate,
+    });
+
+    logApiSuccess("POST", "/api/auth/update-plan", 200, session.user.id, {
+      email: updatedUser.email,
+      plan: plan,
+      credits: planConfig.credits,
+    });
 
     return NextResponse.json({
       message: "Plan updated successfully",
@@ -80,7 +129,16 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.error("Error updating plan:", error);
+    logApiError(
+      "POST",
+      "/api/auth/update-plan",
+      500,
+      error,
+      session?.user?.id,
+      {
+        plan: request.body?.plan,
+      }
+    );
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }
