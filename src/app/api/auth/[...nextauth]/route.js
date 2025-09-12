@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import logger from "@/lib/logger";
 
 export const authOptions = {
   providers: [
@@ -20,6 +21,7 @@ export const authOptions = {
       async authorize(credentials) {
         try {
           if (!credentials?.email || !credentials?.password) {
+            logger.warn("Login attempt with missing credentials");
             throw new Error("Email and password are required");
           }
 
@@ -29,11 +31,13 @@ export const authOptions = {
           // Email format validation
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
           if (!emailRegex.test(email)) {
+            logger.warn("Login attempt with invalid email format", { email });
             throw new Error("Invalid email format");
           }
 
           // Password length validation
           if (password.length < 6) {
+            logger.warn("Login attempt with short password", { email });
             throw new Error("Password must be at least 6 characters");
           }
 
@@ -43,11 +47,23 @@ export const authOptions = {
           const user = await User.findOne({ email });
 
           if (!user) {
+            logger.warn("Login attempt with non-existent email", { email });
             throw new Error("Invalid credentials");
+          }
+
+          // Check if user is locked
+          if (user.lockUntil && user.lockUntil > Date.now()) {
+            logger.warn("Login attempt for locked account", { email });
+            throw new Error(
+              "Account is temporarily locked. Please try again later."
+            );
           }
 
           // Check if user has password (for OAuth users)
           if (!user.password) {
+            logger.warn("Login attempt for OAuth user with password", {
+              email,
+            });
             throw new Error("Invalid credentials");
           }
 
@@ -58,12 +74,30 @@ export const authOptions = {
           );
 
           if (!isCorrectPassword) {
+            // Increment login attempts
+            await User.findByIdAndUpdate(user._id, {
+              $inc: { loginAttempts: 1 },
+              ...(user.loginAttempts >= 4 && {
+                lockUntil: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours
+              }),
+            });
+
+            logger.warn("Login attempt with incorrect password", { email });
             throw new Error("Invalid credentials");
           }
 
-          // Update last login
+          // Reset login attempts and update last login
           await User.findByIdAndUpdate(user._id, {
+            loginAttempts: 0,
+            lockUntil: null,
             lastLogin: new Date(),
+          });
+
+          logger.info("User login successful", {
+            email: user.email,
+            userId: user._id.toString(),
+            role: user.role,
+            provider: user.provider,
           });
 
           return {
@@ -74,13 +108,18 @@ export const authOptions = {
             emailVerified: user.emailVerified,
             provider: user.provider,
             onboardingCompleted: user.onboardingCompleted,
+            role: user.role,
+            permissions: user.permissions,
             plan: user.plan,
             credits: user.credits,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
           };
         } catch (error) {
-          console.error("Auth error:", error.message);
+          logger.error("Authentication error", {
+            error: error.message,
+            email: credentials?.email,
+          });
           throw new Error(error.message);
         }
       },
@@ -94,6 +133,8 @@ export const authOptions = {
         token.emailVerified = user.emailVerified;
         token.provider = user.provider;
         token.onboardingCompleted = user.onboardingCompleted;
+        token.role = user.role;
+        token.permissions = user.permissions;
         token.plan = user.plan;
         token.credits = user.credits;
         token.createdAt = user.createdAt;
@@ -111,6 +152,8 @@ export const authOptions = {
             token.emailVerified = userData.emailVerified;
             token.provider = userData.provider;
             token.onboardingCompleted = userData.onboardingCompleted;
+            token.role = userData.role;
+            token.permissions = userData.permissions;
             token.plan = userData.plan;
             token.credits = userData.credits;
             token.createdAt = userData.createdAt;
@@ -118,7 +161,10 @@ export const authOptions = {
             token.shopify = userData.shopify;
           }
         } catch (error) {
-          console.error("Error fetching user data in JWT callback:", error);
+          logger.error("Error fetching user data in JWT callback", {
+            error: error.message,
+            email: token.email,
+          });
         }
       }
 
@@ -130,6 +176,8 @@ export const authOptions = {
         session.user.emailVerified = token.emailVerified;
         session.user.provider = token.provider;
         session.user.onboardingCompleted = token.onboardingCompleted;
+        session.user.role = token.role;
+        session.user.permissions = token.permissions;
         session.user.plan = token.plan;
         session.user.credits = token.credits;
         session.user.createdAt = token.createdAt;
@@ -138,7 +186,8 @@ export const authOptions = {
       }
       return session;
     },
-    async signIn({ account, profile }) {
+
+    async signIn({ account, profile, user }) {
       if (account.provider === "google") {
         try {
           await connectDB();
@@ -147,13 +196,21 @@ export const authOptions = {
 
           if (!userExists) {
             // Create new user from Google with default "none" plan
-            await User.create({
+            const newUser = await User.create({
               email: profile.email,
               name: profile.name,
               image: profile.picture,
               emailVerified: true,
               provider: "google",
               onboardingCompleted: false,
+              role: "user",
+              permissions: {
+                viewLogs: false,
+                manageUsers: false,
+                manageAdmins: false,
+                viewAnalytics: false,
+                systemSettings: false,
+              },
               plan: "none",
               credits: 0,
               planDetails: {
@@ -164,6 +221,23 @@ export const authOptions = {
               },
               lastLogin: new Date(),
             });
+
+            logger.info("New user created via Google OAuth", {
+              email: newUser.email,
+              userId: newUser._id.toString(),
+            });
+
+            // Return user object with ID for JWT callback
+            user.id = newUser._id.toString();
+            user.emailVerified = newUser.emailVerified;
+            user.provider = newUser.provider;
+            user.onboardingCompleted = newUser.onboardingCompleted;
+            user.role = newUser.role;
+            user.permissions = newUser.permissions;
+            user.plan = newUser.plan;
+            user.credits = newUser.credits;
+            user.createdAt = newUser.createdAt;
+            user.updatedAt = newUser.updatedAt;
           } else {
             // Update existing user's Google info
             await User.findByIdAndUpdate(userExists._id, {
@@ -173,11 +247,31 @@ export const authOptions = {
               provider: "google",
               lastLogin: new Date(),
             });
+
+            logger.info("Existing user logged in via Google OAuth", {
+              email: userExists.email,
+              userId: userExists._id.toString(),
+            });
+
+            // Return user object with ID for JWT callback
+            user.id = userExists._id.toString();
+            user.emailVerified = userExists.emailVerified;
+            user.provider = userExists.provider;
+            user.onboardingCompleted = userExists.onboardingCompleted;
+            user.role = userExists.role;
+            user.permissions = userExists.permissions;
+            user.plan = userExists.plan;
+            user.credits = userExists.credits;
+            user.createdAt = userExists.createdAt;
+            user.updatedAt = userExists.updatedAt;
           }
 
           return true;
         } catch (error) {
-          console.error("Google sign in error:", error);
+          logger.error("Google sign in error", {
+            error: error.message,
+            email: profile.email,
+          });
           return false;
         }
       }

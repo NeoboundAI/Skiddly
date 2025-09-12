@@ -12,7 +12,7 @@ import {
   FiClock,
   FiRefreshCw,
 } from "react-icons/fi";
-import Toast from "@/components/Toast";
+import toast from "react-hot-toast";
 import WebhookStatus from "@/components/WebhookStatus";
 import useShopStore from "@/stores/shopStore";
 
@@ -22,11 +22,6 @@ const OrdersPage = () => {
   const [abandonedCarts, setAbandonedCarts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [toast, setToast] = useState({
-    message: "",
-    type: "info",
-    isVisible: false,
-  });
 
   const fetchAbandonedCarts = async () => {
     if (!selectedShop) {
@@ -311,14 +306,6 @@ const OrdersPage = () => {
           )}
         </div>
       </div>
-
-      {/* Toast Notification */}
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.isVisible}
-        onClose={() => setToast({ ...toast, isVisible: false })}
-      />
     </DashboardLayout>
   );
 };

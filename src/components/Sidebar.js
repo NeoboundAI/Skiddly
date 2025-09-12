@@ -66,7 +66,7 @@ const Sidebar = () => {
 
   return (
     <div
-      className={`bg-[#F2F4F7] relative  transition-all duration-300 ${
+      className={`bg-gradient-to-b from-purple-200 via-purple-50 to-purple-100 relative  transition-all duration-300 ${
         isCollapsed ? "w-[74px]" : "w-56"
       }`}
     >
@@ -136,7 +136,7 @@ const Sidebar = () => {
                 <div className="flex  items-center ">
                   <Icon
                     className={`w-4 h-4  ${
-                      isActive ? "text-[#98A2B3]" : "text-[#98A2B3]"
+                      isActive ? "text-purple-400" : "text-purple-400"
                     }`}
                   />
                   {!isCollapsed && (
@@ -180,7 +180,7 @@ const Sidebar = () => {
                 <div className="flex  items-center ">
                   <Icon
                     className={`w-4 h-4  ${
-                      isActive ? "text-[#98A2B3]" : "text-[#98A2B3]"
+                      isActive ? "text-purple-400" : "text-purple-400"
                     }`}
                   />
                   {!isCollapsed && (

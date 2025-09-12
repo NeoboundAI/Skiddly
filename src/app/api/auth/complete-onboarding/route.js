@@ -5,6 +5,13 @@ import User from "@/models/User";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
+import {
+  logApiError,
+  logApiSuccess,
+  logAuthFailure,
+  logDbOperation,
+  logBusinessEvent,
+} from "@/lib/apiLogger";
 
 // Define authOptions locally since it's not exported from the NextAuth route
 const authOptions = {
@@ -199,6 +206,12 @@ export async function POST(req) {
     const session = await getServerSession(authOptions);
 
     if (!session) {
+      logAuthFailure(
+        "POST",
+        "/api/auth/complete-onboarding",
+        null,
+        "No session"
+      );
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -215,8 +228,36 @@ export async function POST(req) {
     );
 
     if (!updatedUser) {
+      logApiError(
+        "POST",
+        "/api/auth/complete-onboarding",
+        404,
+        new Error("User not found"),
+        session.user.id
+      );
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
+
+    logDbOperation("update", "User", session.user.id, {
+      operation: "complete_onboarding",
+      previousStatus: false,
+      newStatus: true,
+    });
+
+    logBusinessEvent("onboarding_completed", session.user.id, {
+      email: updatedUser.email,
+      provider: updatedUser.provider,
+    });
+
+    logApiSuccess(
+      "POST",
+      "/api/auth/complete-onboarding",
+      200,
+      session.user.id,
+      {
+        email: updatedUser.email,
+      }
+    );
 
     return NextResponse.json(
       {
@@ -239,7 +280,13 @@ export async function POST(req) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Complete onboarding error:", error);
+    logApiError(
+      "POST",
+      "/api/auth/complete-onboarding",
+      500,
+      error,
+      session?.user?.id
+    );
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import TextInput from "@/components/ui/TextInputs";
 import PasswordInput from "@/components/ui/TextInputs";
 import EmailInput from "@/components/ui/TextInputs";
@@ -14,7 +13,6 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const nameRegex = /^[a-zA-Z\s'-]+$/;
 
 const RegisterForm = () => {
-  const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -180,8 +178,11 @@ const RegisterForm = () => {
           "Registration successful but sign in failed. Please try signing in manually."
         );
       } else {
-        // Registration and sign in successful - AuthWrapper will handle routing
-        router.push("/dashboard");
+        // Registration and sign in successful - AuthWrapper will handle routing based on onboarding status
+        // No need to redirect here, let AuthWrapper determine the correct path
+        console.log(
+          "Registration and sign in successful, AuthWrapper will handle routing"
+        );
       }
     } catch (error) {
       console.error("Registration error:", error);
@@ -203,8 +204,11 @@ const RegisterForm = () => {
       if (result?.error) {
         setError("Google sign in failed. Please try again.");
       } else if (result?.ok) {
-        // Google sign in successful - AuthWrapper will handle routing
-        router.push("/dashboard");
+        // Google sign in successful - AuthWrapper will handle routing based on onboarding status
+        // No need to redirect here, let AuthWrapper determine the correct path
+        console.log(
+          "Google sign in successful, AuthWrapper will handle routing"
+        );
       }
     } catch (error) {
       console.error("Google sign in error:", error);

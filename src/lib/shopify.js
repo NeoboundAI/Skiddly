@@ -2,8 +2,7 @@ import crypto from "crypto";
 
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
-const SHOPIFY_SCOPES =
-  process.env.SHOPIFY_SCOPES || "read_products,read_orders,read_customers";
+const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES;
 const SHOPIFY_REDIRECT_URI =
   process.env.SHOPIFY_REDIRECT_URI ||
   `${process.env.NEXTAUTH_URL}/api/shopify/callback`;
@@ -192,28 +191,6 @@ export async function getShopifyAbandonedCarts(shop, accessToken, limit = 50) {
 
   const data = await response.json();
   return data.checkouts || [];
-}
-
-// Helper function to get shop info
-export async function getShopInfo(shop, accessToken) {
-  const url = `https://${shop}/admin/api/${
-    process.env.SHOPIFY_VERSION || "2025-07"
-  }/shop.json`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch shop info: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.shop;
 }
 
 // Helper function to validate shop domain format

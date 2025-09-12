@@ -1,5 +1,10 @@
 import twilio from "twilio";
 import { VapiClient } from "@vapi-ai/server-sdk";
+import {
+  logExternalApi,
+  logExternalApiError,
+  logBusinessEvent,
+} from "@/lib/apiLogger";
 
 /**
  * Method to import Twilio phone numbers to VAPI.
@@ -8,21 +13,42 @@ export const importTwilioNumberToVapi = async ({ sid, token, phoneNumber }) => {
   // Initialize Twilio client
   const client = twilio(sid, token);
 
-  console.log(`Importing Twilio number: ${phoneNumber}`);
+  logBusinessEvent("twilio_import_started", null, {
+    phoneNumber,
+  });
 
   // Step 1: Validate Twilio credentials & phone number
   try {
+    logExternalApi("Twilio", "validate_phone_number", null, {
+      phoneNumber,
+    });
+
     const phoneDetails = await client.incomingPhoneNumbers.list({
       phoneNumber,
       limit: 1,
     });
 
     if (!phoneDetails || phoneDetails.length === 0) {
-      console.error(`Phone number ${phoneNumber} not found in Twilio account`);
+      logExternalApiError(
+        "Twilio",
+        "validate_phone_number",
+        new Error(`Phone number ${phoneNumber} not found in Twilio account`),
+        null,
+        {
+          phoneNumber,
+        }
+      );
       return { success: false };
     }
+
+    logBusinessEvent("twilio_phone_validated", null, {
+      phoneNumber,
+      twilioSid: phoneDetails[0]?.sid,
+    });
   } catch (error) {
-    console.error("Twilio Error:", error);
+    logExternalApiError("Twilio", "validate_phone_number", error, null, {
+      phoneNumber,
+    });
     return { success: false };
   }
 
@@ -34,6 +60,11 @@ export const importTwilioNumberToVapi = async ({ sid, token, phoneNumber }) => {
 
     // First, try to create the phone number
     try {
+      logExternalApi("VAPI", "create_phone_number", null, {
+        phoneNumber,
+        provider: "twilio",
+      });
+
       const response = await vapiClient.phoneNumbers.create({
         provider: "twilio",
         number: phoneNumber,
@@ -41,7 +72,12 @@ export const importTwilioNumberToVapi = async ({ sid, token, phoneNumber }) => {
         twilioAuthToken: token,
       });
 
-      console.log(`Successfully attached ${phoneNumber} to VAPI`);
+      logBusinessEvent("vapi_phone_created", null, {
+        phoneNumber,
+        vapiNumberId: response.id,
+        status: response.status,
+      });
+
       return {
         success: true,
         vapiData: {
@@ -57,18 +93,26 @@ export const importTwilioNumberToVapi = async ({ sid, token, phoneNumber }) => {
         createError.statusCode === 400 &&
         createError.body?.message?.includes("Existing Phone Number")
       ) {
-        console.log(
-          `Phone number ${phoneNumber} already exists in VAPI, fetching existing details...`
-        );
+        logBusinessEvent("vapi_phone_already_exists", null, {
+          phoneNumber,
+        });
 
         // Fetch existing phone numbers to find the matching one
+        logExternalApi("VAPI", "list_phone_numbers", null, {
+          reason: "find_existing_number",
+        });
+
         const existingNumbers = await vapiClient.phoneNumbers.list();
         const existingNumber = existingNumbers.find(
           (num) => num.number === phoneNumber && num.twilioAccountSid === sid
         );
 
         if (existingNumber) {
-          console.log(`Found existing VAPI number: ${existingNumber.id}`);
+          logBusinessEvent("vapi_existing_phone_found", null, {
+            phoneNumber,
+            vapiNumberId: existingNumber.id,
+          });
+
           return {
             success: true,
             vapiData: {
@@ -79,8 +123,16 @@ export const importTwilioNumberToVapi = async ({ sid, token, phoneNumber }) => {
             },
           };
         } else {
-          console.error(
-            `Phone number ${phoneNumber} exists but couldn't be found in VAPI list`
+          logExternalApiError(
+            "VAPI",
+            "find_existing_phone",
+            new Error(
+              `Phone number ${phoneNumber} exists but couldn't be found in VAPI list`
+            ),
+            null,
+            {
+              phoneNumber,
+            }
           );
           return { success: false };
         }
@@ -90,7 +142,9 @@ export const importTwilioNumberToVapi = async ({ sid, token, phoneNumber }) => {
       }
     }
   } catch (vapiError) {
-    console.error("VAPI Error:", vapiError);
+    logExternalApiError("VAPI", "import_phone_number", vapiError, null, {
+      phoneNumber,
+    });
     return { success: false };
   }
 };

@@ -25,6 +25,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    role: {
+      type: String,
+      enum: ["user", "admin", "super_admin"],
+      default: "user",
+    },
+    permissions: {
+      viewLogs: { type: Boolean, default: false },
+      manageUsers: { type: Boolean, default: false },
+      manageAdmins: { type: Boolean, default: false },
+      viewAnalytics: { type: Boolean, default: false },
+      systemSettings: { type: Boolean, default: false },
+    },
     otp: {
       code: String,
       expiresAt: Date,
@@ -55,6 +67,16 @@ const userSchema = new mongoose.Schema(
       monthlyActiveUsers: { type: Number, default: 0 },
       planStartDate: { type: Date },
       planEndDate: { type: Date },
+    },
+    lastLogin: {
+      type: Date,
+    },
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: {
+      type: Date,
     },
   },
   {

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import TextInput from "@/components/ui/TextInputs";
 import PasswordInput from "@/components/ui/TextInputs";
@@ -14,7 +13,6 @@ import { FcGoogle } from "react-icons/fc";
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const LoginForm = () => {
-  const router = useRouter();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -101,8 +99,9 @@ const LoginForm = () => {
             );
         }
       } else if (result?.ok) {
-        // Successful sign in - AuthWrapper will handle routing
-        router.push("/dashboard");
+        // Sign in successful - AuthWrapper will handle routing based on onboarding status
+        // No need to redirect here, let AuthWrapper determine the correct path
+        console.log("Sign in successful, AuthWrapper will handle routing");
       } else {
         setError("Something went wrong. Please try again.");
       }
@@ -126,8 +125,11 @@ const LoginForm = () => {
       if (result?.error) {
         setError("Google sign in failed. Please try again.");
       } else if (result?.ok) {
-        // Google sign in successful - AuthWrapper will handle routing
-        router.push("/dashboard");
+        // Google sign in successful - AuthWrapper will handle routing based on onboarding status
+        // No need to redirect here, let AuthWrapper determine the correct path
+        console.log(
+          "Google sign in successful, AuthWrapper will handle routing"
+        );
       }
     } catch (error) {
       console.error("Google sign in error:", error);

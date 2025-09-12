@@ -47,6 +47,9 @@ const AuthWrapper = ({ children }) => {
           setIsChecking(false);
           return;
         }
+        if (session.user?.role === "admin" || session.user?.role === "super_admin") {
+          router.push("/admin/dashboard");
+        }
 
         // Check onboarding status for other pages
         if (session.user?.onboardingCompleted) {

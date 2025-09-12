@@ -10,6 +10,15 @@ import {
   serverErrorResponse,
   successResponse,
 } from "@/app/api/handlers/apiResponses";
+import {
+  logApiError,
+  logApiSuccess,
+  logAuthFailure,
+  logDbOperation,
+  logExternalApi,
+  logExternalApiError,
+  logBusinessEvent,
+} from "@/lib/apiLogger";
 
 export async function POST(req) {
   try {
@@ -17,6 +26,12 @@ export async function POST(req) {
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
+      logAuthFailure(
+        "POST",
+        "/api/twilio/import",
+        null,
+        "No session or user email"
+      );
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
@@ -26,6 +41,20 @@ export async function POST(req) {
     const { sid, token, phoneNumber } = await req.json();
 
     if (!sid || !token || !phoneNumber) {
+      logApiError(
+        "POST",
+        "/api/twilio/import",
+        400,
+        new Error("Missing required fields"),
+        session.user,
+        {
+          missingFields: {
+            sid: !sid,
+            token: !token,
+            phoneNumber: !phoneNumber,
+          },
+        }
+      );
       return badRequestResponse(
         "Twilio SID, token, and phone number are required"
       );
@@ -34,6 +63,12 @@ export async function POST(req) {
     // Get user
     const user = await User.findOne({ email: session.user.email });
     if (!user) {
+      logAuthFailure(
+        "POST",
+        "/api/twilio/import",
+        session.user,
+        "User not found in database"
+      );
       return NextResponse.json(
         { success: false, message: "User not found" },
         { status: 404 }
@@ -46,13 +81,34 @@ export async function POST(req) {
       isActive: true,
     });
     if (existingNumber) {
+      logApiError(
+        "POST",
+        "/api/twilio/import",
+        400,
+        new Error("User already has an active number"),
+        session.user,
+        {
+          existingNumberId: existingNumber._id.toString(),
+          phoneNumber: existingNumber.phoneNumber,
+        }
+      );
       return NextResponse.json(
         { success: false, message: "User already has an active number" },
         { status: 400 }
       );
     }
 
+    logDbOperation("read", "TwilioNumber", session.user, {
+      operation: "check_existing_active_number",
+      hasExistingNumber: !!existingNumber,
+    });
+
     // Import to Vapi
+    logExternalApi("VAPI", "import_twilio_number", user._id.toString(), {
+      phoneNumber,
+      twilioSid: sid,
+    });
+
     const vapiResult = await importTwilioNumberToVapi({
       sid,
       token,
@@ -60,7 +116,16 @@ export async function POST(req) {
     });
 
     if (!vapiResult.success) {
-      console.error("Failed to import Twilio number to Vapi");
+      logExternalApiError(
+        "VAPI",
+        "import_twilio_number",
+        new Error("Failed to import Twilio number to Vapi"),
+        user._id.toString(),
+        {
+          phoneNumber,
+          twilioSid: sid,
+        }
+      );
       return serverErrorResponse();
     }
 
@@ -81,6 +146,24 @@ export async function POST(req) {
       vapiStatus: vapiResult.vapiData.status,
     });
 
+    logDbOperation("create", "TwilioNumber", session.user, {
+      numberId: newNumber._id.toString(),
+      phoneNumber,
+      type: "own",
+      vapiNumberId: vapiResult.vapiData.vapiNumberId,
+    });
+
+    logBusinessEvent("twilio_number_imported", session.user, {
+      phoneNumber,
+      vapiNumberId: vapiResult.vapiData.vapiNumberId,
+      vapiStatus: vapiResult.vapiData.status,
+    });
+
+    logApiSuccess("POST", "/api/twilio/import", 200, session.user, {
+      phoneNumber,
+      numberId: newNumber._id.toString(),
+    });
+
     return NextResponse.json({
       success: true,
       message: "Twilio number imported and saved successfully",
@@ -95,7 +178,9 @@ export async function POST(req) {
       },
     });
   } catch (error) {
-    console.error("Error in import twilio", error);
+    logApiError("POST", "/api/twilio/import", 500, error, session?.user, {
+      phoneNumber: req.body?.phoneNumber,
+    });
     return serverErrorResponse();
   }
 }
