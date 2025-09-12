@@ -1,22 +1,12 @@
 "use client";
 
-import type React from "react";
+import React from "react";
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import TwilioImportForm from "./twilio/ImportForm";
 import ShopifyConnectModal from "@/components/ShopifyConnectModal";
 import DashboardLayout from "@/components/DashboardLayout";
-
-type IntegrationStatus = "connected" | "disconnected" | "coming-soon";
-
-interface Integration {
-  id: string;
-  name: string;
-  description: string;
-  status: IntegrationStatus;
-  icon: React.ReactNode;
-}
 
 const TwilioIcon = () => (
   <svg
@@ -97,17 +87,7 @@ const WhatsAppIcon = () => (
   </svg>
 );
 
-interface IntegrationCardProps {
-  integration: Integration;
-  onConnect: (id: string) => void;
-  onDisconnect: (id: string) => void;
-}
-
-const IntegrationCard = ({
-  integration,
-  onConnect,
-  onDisconnect,
-}: IntegrationCardProps) => {
+const IntegrationCard = ({ integration, onConnect, onDisconnect }) => {
   const isConnected = integration.status === "connected";
   const isComingSoon = integration.status === "coming-soon";
 
@@ -196,7 +176,7 @@ const IntegrationCard = ({
 
 export default function IntegrationsPage() {
   const { data: session } = useSession();
-  const [integrations, setIntegrations] = useState<Integration[]>([
+  const [integrations, setIntegrations] = useState([
     {
       id: "twilio",
       name: "Twilio",
@@ -236,7 +216,7 @@ export default function IntegrationsPage() {
       setIntegrations((prev) =>
         prev.map((integration) =>
           integration.id === "shopify"
-            ? { ...integration, status: "connected" as IntegrationStatus }
+            ? { ...integration, status: "connected" }
             : integration
         )
       );
@@ -251,7 +231,7 @@ export default function IntegrationsPage() {
     }
   }, []);
 
-  const handleConnect = (id: string) => {
+  const handleConnect = (id) => {
     if (id === "twilio") {
       setShowTwilioForm(true);
     } else if (id === "shopify") {
@@ -260,28 +240,24 @@ export default function IntegrationsPage() {
       setIntegrations((prev) =>
         prev.map((integration) =>
           integration.id === id
-            ? { ...integration, status: "connected" as IntegrationStatus }
+            ? { ...integration, status: "connected" }
             : integration
         )
       );
     }
   };
 
-  const handleDisconnect = (id: string) => {
+  const handleDisconnect = (id) => {
     setIntegrations((prev) =>
       prev.map((integration) =>
         integration.id === id
-          ? { ...integration, status: "disconnected" as IntegrationStatus }
+          ? { ...integration, status: "disconnected" }
           : integration
       )
     );
   };
 
-  const handleTwilioConnect = async (credentials: {
-    accountSid: string;
-    authToken: string;
-    phoneNumber: string;
-  }) => {
+  const handleTwilioConnect = async (credentials) => {
     // Here you would typically make an API call to save the credentials
     console.log("Connecting Twilio with credentials:", credentials);
 
@@ -289,7 +265,7 @@ export default function IntegrationsPage() {
     setIntegrations((prev) =>
       prev.map((integration) =>
         integration.id === "twilio"
-          ? { ...integration, status: "connected" as IntegrationStatus }
+          ? { ...integration, status: "connected" }
           : integration
       )
     );
@@ -331,7 +307,7 @@ export default function IntegrationsPage() {
             setIntegrations((prev) =>
               prev.map((integration) =>
                 integration.id === "shopify"
-                  ? { ...integration, status: "connected" as IntegrationStatus }
+                  ? { ...integration, status: "connected" }
                   : integration
               )
             );
