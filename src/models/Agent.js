@@ -288,7 +288,7 @@ const agentSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
-      connectedPhoneNumbers: [String],
+      connectedPhoneNumbers: [mongoose.Schema.Types.Mixed],
       connectedKnowledgeBase: {
         enabled: {
           type: Boolean,
@@ -378,6 +378,8 @@ const agentSchema = new mongoose.Schema(
 agentSchema.index({ userId: 1, type: 1 });
 agentSchema.index({ vapiAgentId: 1 });
 agentSchema.index({ assistantId: 1 });
+agentSchema.index({ shopifyShopId: 1 });
+agentSchema.index({ userId: 1, shopifyShopId: 1 }); // Compound index for user + shop queries
 
 // Clear any existing model to avoid schema conflicts in development
 if (mongoose.models.Agent) {

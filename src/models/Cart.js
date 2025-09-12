@@ -209,7 +209,6 @@ const CartSchema = new mongoose.Schema(
     // Correlation ID for tracing
     correlationId: {
       type: String,
-      index: true,
     },
 
     // Metadata for additional info
@@ -230,66 +229,8 @@ CartSchema.index({ userId: 1, status: 1, shopifyUpdatedAt: -1 });
 CartSchema.index({ customerEmail: 1, status: 1 });
 CartSchema.index({ correlationId: 1 });
 
-// Virtual for customer full name
-CartSchema.virtual("customerFullName").get(function () {
-  if (this.customerFirstName && this.customerLastName) {
-    return `${this.customerFirstName} ${this.customerLastName}`;
-  } else if (this.customerFirstName) {
-    return this.customerFirstName;
-  } else if (this.customerLastName) {
-    return this.customerLastName;
-  }
-  return "Guest Customer";
-});
-
-// Method to check if cart should be considered abandoned (20+ minutes of inactivity)
-CartSchema.methods.shouldBeAbandoned = function () {
-  if (this.status !== "inCheckout") return false;
-
-  const twentyMinutesAgo = new Date(Date.now() - 20 * 60 * 1000);
-  return this.lastActivityAt < twentyMinutesAgo;
-};
-
-// Method to update last activity
-CartSchema.methods.updateActivity = function () {
-  this.lastActivityAt = new Date();
-  return this.save();
-};
-
-// Static method to find carts ready for abandonment
-CartSchema.statics.findReadyForAbandonment = function () {
-  const twentyMinutesAgo = new Date(Date.now() - 20 * 60 * 1000);
-
-  return this.find({
-    status: "inCheckout",
-    lastActivityAt: { $lt: twentyMinutesAgo },
-  });
-};
-
-// Static method to mark cart as abandoned
-CartSchema.statics.markAsAbandoned = function (checkoutId) {
-  return this.findOneAndUpdate(
-    { shopifyCheckoutId: checkoutId },
-    {
-      status: "abandoned",
-      lastActivityAt: new Date(),
-    },
-    { new: true }
-  );
-};
-
-// Static method to mark cart as purchased
-CartSchema.statics.markAsPurchased = function (checkoutId) {
-  return this.findOneAndUpdate(
-    { shopifyCheckoutId: checkoutId },
-    {
-      status: "purchased",
-      completedAt: new Date(),
-      lastActivityAt: new Date(),
-    },
-    { new: true }
-  );
-};
+// Note: Cart status changes are handled by the CartScannerQueue system
+// No static methods needed - the queue automatically processes abandonment
 
 const Cart = mongoose.models.Cart || mongoose.model("Cart", CartSchema);
 

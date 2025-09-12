@@ -62,16 +62,12 @@ const AgentPage = () => {
 
     try {
       setLoading(true);
-      const response = await axios.get("/api/agents");
+      // Use server-side filtering by shopId
+      const response = await axios.get(
+        `/api/agents?shopId=${selectedShop._id}`
+      );
       if (response.data.success) {
-        // Filter agents by the currently selected shop
-        // shopifyShopId is a populated object, so we need to compare _id
-        const filteredAgents = response.data.data.filter(
-          (agent) =>
-            !agent.shopifyShopId ||
-            agent.shopifyShopId?._id === selectedShop._id
-        );
-        setAgents(filteredAgents);
+        setAgents(response.data.data);
       } else {
         setError("Failed to fetch agents");
       }
@@ -326,6 +322,7 @@ const AgentPage = () => {
                       <span>
                         {agent.testLaunch?.connectedPhoneNumbers?.length > 0
                           ? agent.testLaunch.connectedPhoneNumbers[0]
+                              ?.phoneNumber || "No Number"
                           : "No Number"}
                       </span>
                     </div>

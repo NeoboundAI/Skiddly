@@ -50,7 +50,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { assistantId } = body;
+    const { assistantId, shopifyShopId } = body;
 
     if (!assistantId) {
       logApiError(
@@ -62,6 +62,20 @@ export async function POST(request) {
       );
       return NextResponse.json(
         { error: "Assistant ID is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!shopifyShopId) {
+      logApiError(
+        "POST",
+        "/api/agents/create-from-template",
+        400,
+        new Error("Shop ID is required"),
+        session.user
+      );
+      return NextResponse.json(
+        { error: "Shop ID is required" },
         { status: 400 }
       );
     }
@@ -279,6 +293,7 @@ export async function POST(request) {
       name: defaultAgent.name,
       type: defaultAgent.type,
       status: "draft", // Start as draft
+      shopifyShopId: shopifyShopId, // Associate with selected shop
       // Spread the default configuration and override with extracted data
       ...defaultAgent.defaultConfiguration,
       agentPersona: updatedAgentPersona,
@@ -294,6 +309,7 @@ export async function POST(request) {
       name: defaultAgent.name,
       type: defaultAgent.type,
       status: "draft",
+      shopifyShopId: shopifyShopId,
     });
 
     logBusinessEvent("agent_created_from_template", session.user, {
@@ -301,6 +317,7 @@ export async function POST(request) {
       templateName: defaultAgent.name,
       templateType: defaultAgent.type,
       assistantId: defaultAgent.assistantId,
+      shopifyShopId: shopifyShopId,
     });
 
     logApiSuccess(
@@ -312,6 +329,7 @@ export async function POST(request) {
         agentId: agent._id.toString(),
         name: defaultAgent.name,
         type: defaultAgent.type,
+        shopifyShopId: shopifyShopId,
       }
     );
 

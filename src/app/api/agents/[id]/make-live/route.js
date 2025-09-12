@@ -264,6 +264,7 @@ export async function POST(request, { params }) {
           transcriber: preparedVapiConfig.transcriber,
           serverUrl: process.env.VAPI_WEBHOOK_URL,
           serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
+          serverMessages: ["status-update", "end-of-call-report", "hang"],
         });
         assistantId = assistant.id;
       } catch (error) {
@@ -292,6 +293,11 @@ export async function POST(request, { params }) {
           transcriber: preparedVapiConfig.transcriber,
           serverUrl: process.env.VAPI_WEBHOOK_URL,
           serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
+          serverMessages: [
+            "status-update",
+            "end-of-call-report",
+            "hang",
+          ],
         });
       } catch (error) {
         logExternalApiError("VAPI", "update_assistant", error, session.user, {
@@ -310,7 +316,7 @@ export async function POST(request, { params }) {
         status: "active",
         assistantId: assistantId,
         $set: {
-          "testLaunch.connectedPhoneNumbers": [selectedPhoneNumber._id],
+          "testLaunch.connectedPhoneNumbers": [selectedPhoneNumber],
           "testLaunch.isLive": true,
         },
       },

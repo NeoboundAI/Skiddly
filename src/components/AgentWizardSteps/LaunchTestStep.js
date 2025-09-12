@@ -21,14 +21,21 @@ const SectionSeparator = () => (
   <div className="border-t-2 border-dashed border-gray-200 my-8"></div>
 );
 
-const LaunchTestStep = ({ config, onUpdate,agentConfig, onSave, loading, errors = {} }) => {
+const LaunchTestStep = ({
+  config,
+  onUpdate,
+  agentConfig,
+  onSave,
+  loading,
+  errors = {},
+}) => {
   const [showTwilioModal, setShowTwilioModal] = useState(false);
   const { numbers, hasNumbers, updateNumbersAfterConnection } = useTwilio();
   // Find the selected phone number from the numbers array
-  console.log(numbers)
+
   const selectedPhoneNumber =
     config?.connectedPhoneNumbers?.length > 0
-      ? numbers.find((n) => n._id === config.connectedPhoneNumbers[0])
+      ? config.connectedPhoneNumbers[0]
       : null;
 
   const handleChange = (field, value) => {
@@ -51,10 +58,9 @@ const LaunchTestStep = ({ config, onUpdate,agentConfig, onSave, loading, errors 
     }
   };
 
-
   const handleNumberSelect = (number) => {
-    // Update the config with the selected number ID in connectedPhoneNumbers array
-    onUpdate({ connectedPhoneNumbers: number ? [number._id] : [] });
+    // Update the config with the full number object in connectedPhoneNumbers array
+    onUpdate({ connectedPhoneNumbers: number ? [number] : [] });
   };
 
   // Safety check for config
@@ -125,14 +131,16 @@ const LaunchTestStep = ({ config, onUpdate,agentConfig, onSave, loading, errors 
                 <FiUser className="w-4 h-4 text-gray-600" />
               </div>
               <div>
-                  <h4 className="text-sm font-semibold text-gray-900">{agentConfig.agentName}</h4>
-                <p className="text-xs text-gray-500">
-                  {agentConfig.language}
-                </p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                    <span className="text-xs text-gray-500">Abondoned Checkout agent</span>
-                  </div>
+                <h4 className="text-sm font-semibold text-gray-900">
+                  {agentConfig.agentName}
+                </h4>
+                <p className="text-xs text-gray-500">{agentConfig.language}</p>
+                <div className="flex items-center space-x-2 mt-1">
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                  <span className="text-xs text-gray-500">
+                    Abondoned Checkout agent
+                  </span>
+                </div>
               </div>
             </div>
             {!hasNumbers || numbers.length === 0 ? (
@@ -160,9 +168,9 @@ const LaunchTestStep = ({ config, onUpdate,agentConfig, onSave, loading, errors 
                 <FiUser className="w-4 h-4 text-purple-600" />
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-900">{agentConfig.agentName}</h4>
-               
-               
+                <h4 className="text-sm font-semibold text-gray-900">
+                  {agentConfig.agentName}
+                </h4>
               </div>
             </div>
             <button className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors text-xs font-medium">

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn, getSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Link from "next/link";
 import TextInput from "@/components/ui/TextInputs";
 import PasswordInput from "@/components/ui/TextInputs";
@@ -14,7 +13,6 @@ import { FcGoogle } from "react-icons/fc";
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const LoginForm = () => {
-  const router = useRouter();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -64,14 +62,6 @@ const LoginForm = () => {
     }
   };
 
-  // Function to determine redirect path based on user role
-  const getRedirectPath = (userRole) => {
-    if (userRole === "admin" || userRole === "super_admin") {
-      return "/admin/dashboard";
-    }
-    return "/dashboard";
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -109,15 +99,9 @@ const LoginForm = () => {
             );
         }
       } else if (result?.ok) {
-        // Get the session to check user role
-        const session = await getSession();
-        if (session?.user?.role) {
-          const redirectPath = getRedirectPath(session.user.role);
-          router.push(redirectPath);
-        } else {
-          // Fallback to regular dashboard if role is not available
-          router.push("/dashboard");
-        }
+        // Sign in successful - AuthWrapper will handle routing based on onboarding status
+        // No need to redirect here, let AuthWrapper determine the correct path
+        console.log("Sign in successful, AuthWrapper will handle routing");
       } else {
         setError("Something went wrong. Please try again.");
       }
@@ -141,15 +125,11 @@ const LoginForm = () => {
       if (result?.error) {
         setError("Google sign in failed. Please try again.");
       } else if (result?.ok) {
-        // Get the session to check user role
-        const session = await getSession();
-        if (session?.user?.role) {
-          const redirectPath = getRedirectPath(session.user.role);
-          router.push(redirectPath);
-        } else {
-          // Fallback to regular dashboard if role is not available
-          router.push("/dashboard");
-        }
+        // Google sign in successful - AuthWrapper will handle routing based on onboarding status
+        // No need to redirect here, let AuthWrapper determine the correct path
+        console.log(
+          "Google sign in successful, AuthWrapper will handle routing"
+        );
       }
     } catch (error) {
       console.error("Google sign in error:", error);

@@ -1052,11 +1052,8 @@ const AgentWizard = ({ agent, selectedShop, onSave, agentId }) => {
         await axios.put(`/api/agents/${agentId}`, updateData);
 
         // Then make it live using the make-live endpoint
-        const selectedPhoneNumberId =
+        const selectedPhoneNumber =
           agentConfig.testLaunch?.connectedPhoneNumbers?.[0];
-        const selectedPhoneNumber = numbers?.find(
-          (n) => n._id === selectedPhoneNumberId
-        );
 
         if (!selectedPhoneNumber) {
           toast.error(
@@ -1126,12 +1123,9 @@ const AgentWizard = ({ agent, selectedShop, onSave, agentId }) => {
       setSavingStep(false);
 
       // Create VAPI assistant and make agent live
-      // Find the selected phone number object from the numbers array
-      const selectedPhoneNumberId =
+      // Get the selected phone number object (now stored as full object)
+      const selectedPhoneNumber =
         agentConfig.testLaunch.connectedPhoneNumbers[0];
-      const selectedPhoneNumber = numbers.find(
-        (n) => n._id === selectedPhoneNumberId
-      );
 
       const response = await axios.post(`/api/agents/${agentId}/make-live`, {
         vapiConfiguration: agent.vapiConfiguration,

@@ -2,20 +2,8 @@ import { NextResponse } from "next/server";
 import { verifyShopifyWebhook } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import Cart from "@/models/Cart";
-import AbandonedCart from "@/models/AbandonedCart";
 import ShopifyShop from "@/models/ShopifyShop";
-import { scheduleAbandonedCartCheck, cancelCartJobs } from "@/lib/agenda";
-import {
-  logApiError,
-  logApiSuccess,
-  logBusinessEvent,
-  logDbOperation,
-  logExternalApi,
-} from "@/lib/apiLogger";
-import {
-  generateWebhookCorrelationId,
-  generateCorrelationId,
-} from "@/utils/correlationUtils";
+import { generateWebhookCorrelationId } from "@/utils/correlationUtils";
 
 export async function POST(request) {
   try {
@@ -27,46 +15,54 @@ export async function POST(request) {
     const topicHeader = request.headers.get("x-shopify-topic");
     const shopHeader = request.headers.get("x-shopify-shop-domain");
 
-    logExternalApi("Shopify", "webhook_received", null, {
+    console.log("Shopify webhook received:", {
       topic: topicHeader,
       shop: shopHeader,
       hasHmac: !!hmacHeader,
+      bodyLength: body?.length || 0,
+      bodyPreview: body?.substring(0, 100) || "empty",
     });
 
     // Verify webhook authenticity
     if (!hmacHeader || !process.env.SHOPIFY_API_SECRET) {
-      logApiError(
-        "POST",
-        "/api/shopify/webhooks",
-        401,
-        new Error("Missing HMAC header or API secret"),
-        null,
-        {
-          topic: topicHeader,
-          shop: shopHeader,
-        }
-      );
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const isValid = verifyShopifyWebhook(body, hmacHeader);
     if (!isValid) {
-      logApiError(
-        "POST",
-        "/api/shopify/webhooks",
-        401,
-        new Error("Invalid webhook signature"),
-        null,
-        {
-          topic: topicHeader,
-          shop: shopHeader,
-        }
-      );
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     // Parse the webhook payload
-    const webhookData = JSON.parse(body);
+    let webhookData;
+    try {
+      if (!body || body.trim() === "") {
+        console.error("Empty webhook body received");
+        return NextResponse.json(
+          { error: "Empty webhook body" },
+          { status: 400 }
+        );
+      }
+
+      webhookData = JSON.parse(body);
+      console.log("Webhook data received for:", webhookData?.id || "unknown");
+    } catch (parseError) {
+      console.error("JSON parse error:", parseError.message);
+      console.error("Raw body:", body);
+      return NextResponse.json(
+        { error: "Invalid JSON payload" },
+        { status: 400 }
+      );
+    }
+
+    // Validate webhook data
+    if (!webhookData || !webhookData.id) {
+      console.error("Invalid webhook data - missing ID:", webhookData);
+      return NextResponse.json(
+        { error: "Invalid webhook data" },
+        { status: 400 }
+      );
+    }
 
     await connectDB();
 
@@ -92,29 +88,16 @@ export async function POST(request) {
           correlationId
         );
         break;
-
       case "orders/create":
         await handleOrderCreateWebhook(webhookData, shopHeader, correlationId);
         break;
-
       default:
-        logBusinessEvent("shopify_webhook_unhandled", correlationId, {
-          topic: topicHeader,
-          shop: shopHeader,
-        });
+        console.log(`Unhandled webhook topic: ${topicHeader}`);
     }
-
-    logApiSuccess("POST", "/api/shopify/webhooks", 200, null, {
-      topic: topicHeader,
-      shop: shopHeader,
-    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    logApiError("POST", "/api/shopify/webhooks", 500, error, null, {
-      topic: request.headers.get("x-shopify-topic"),
-      shop: request.headers.get("x-shopify-shop-domain"),
-    });
+    console.error("Webhook error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -122,7 +105,7 @@ export async function POST(request) {
   }
 }
 
-// Handle checkout create webhook - add to inCheckout collection
+// Handle checkout create webhook - add to Cart collection
 async function handleCheckoutCreateWebhook(
   webhookData,
   shopDomain,
@@ -131,17 +114,23 @@ async function handleCheckoutCreateWebhook(
   try {
     const checkout = webhookData;
 
-    logBusinessEvent("shopify_checkout_create", correlationId, {
+    console.log("Handling checkout create:", {
       checkoutId: checkout.id,
       shop: shopDomain,
       customerEmail: checkout.email,
       totalPrice: checkout.total_price,
     });
 
+    // Extract shop domain from abandoned checkout URL as fallback
+    const urlShopDomain = extractShopDomainFromUrl(
+      checkout.abandoned_checkout_url
+    );
+    const finalShopDomain = urlShopDomain || shopDomain;
+
     // Find the shop and user
-    const shop = await ShopifyShop.findOne({ shop: shopDomain });
+    const shop = await ShopifyShop.findOne({ shop: finalShopDomain });
     if (!shop) {
-      throw new Error(`Shop not found: ${shopDomain}`);
+      throw new Error(`Shop not found: ${finalShopDomain}`);
     }
 
     // Check if cart already exists
@@ -155,56 +144,26 @@ async function handleCheckoutCreateWebhook(
       cart = await Cart.findOneAndUpdate(
         { shopifyCheckoutId: checkout.id.toString() },
         {
-          ...buildCartData(checkout, shop, correlationId),
+          ...buildCartData(checkout, shop, correlationId, finalShopDomain),
           lastActivityAt: new Date(),
         },
         { new: true }
       );
-
-      logDbOperation("update", "Cart", correlationId, {
-        cartId: cart._id,
-        action: "update_existing_checkout",
-      });
+      console.log(`Updated existing cart: ${cart._id}`);
     } else {
       // Create new cart in inCheckout status
       cart = await Cart.create({
-        ...buildCartData(checkout, shop, correlationId),
+        ...buildCartData(checkout, shop, correlationId, finalShopDomain),
         status: "inCheckout",
       });
-
-      logDbOperation("create", "Cart", correlationId, {
-        cartId: cart._id,
-        action: "create_new_checkout",
-      });
-
-      // Schedule abandoned cart check for 20 minutes later
-      await scheduleAbandonedCartCheck({
-        cartId: cart._id,
-        shopifyCheckoutId: checkout.id.toString(),
-        userId: shop.userId,
-        correlationId,
-      });
-
-      logBusinessEvent("abandoned_cart_check_scheduled", correlationId, {
-        cartId: cart._id,
-        checkTime: "20 minutes",
-      });
+      console.log(`Created new cart: ${cart._id}`);
     }
   } catch (error) {
-    logApiError(
-      "POST",
-      "/api/shopify/webhooks/checkout/create",
-      500,
-      error,
-      correlationId,
-      {
-        checkoutId: webhookData.id,
-        shop: shopDomain,
-      }
-    );
+    console.error("Checkout create error:", error);
     throw error;
   }
 }
+
 // Handle checkout update webhook - update cart activity
 async function handleCheckoutUpdateWebhook(
   webhookData,
@@ -214,17 +173,23 @@ async function handleCheckoutUpdateWebhook(
   try {
     const checkout = webhookData;
 
-    logBusinessEvent("shopify_checkout_update", correlationId, {
+    console.log("Handling checkout update:", {
       checkoutId: checkout.id,
       shop: shopDomain,
       customerEmail: checkout.email,
       totalPrice: checkout.total_price,
     });
 
+    // Extract shop domain from abandoned checkout URL as fallback
+    const urlShopDomain = extractShopDomainFromUrl(
+      checkout.abandoned_checkout_url
+    );
+    const finalShopDomain = urlShopDomain || shopDomain;
+
     // Find the shop and user
-    const shop = await ShopifyShop.findOne({ shop: shopDomain });
+    const shop = await ShopifyShop.findOne({ shop: finalShopDomain });
     if (!shop) {
-      throw new Error(`Shop not found: ${shopDomain}`);
+      throw new Error(`Shop not found: ${finalShopDomain}`);
     }
 
     // Find existing cart
@@ -237,64 +202,23 @@ async function handleCheckoutUpdateWebhook(
       const updatedCart = await Cart.findOneAndUpdate(
         { shopifyCheckoutId: checkout.id.toString() },
         {
-          ...buildCartData(checkout, shop, correlationId),
-          lastActivityAt: new Date(), // Reset the 20-minute timer
+          ...buildCartData(checkout, shop, correlationId, finalShopDomain),
+          lastActivityAt: new Date(), // Reset the timer
           status: "inCheckout", // Ensure it's back to inCheckout if it was marked as abandoned
         },
         { new: true }
       );
-
-      logDbOperation("update", "Cart", correlationId, {
-        cartId: updatedCart._id,
-        action: "update_activity_reset_timer",
-      });
-
-      // Cancel any existing scheduled abandoned cart jobs for this cart
-      await cancelCartJobs(updatedCart._id);
-
-      // Schedule new abandoned cart check for 20 minutes from now
-      await scheduleAbandonedCartCheck({
-        cartId: updatedCart._id,
-        shopifyCheckoutId: checkout.id.toString(),
-        userId: shop.userId,
-        correlationId,
-      });
-
-      logBusinessEvent("activity_timer_reset", correlationId, {
-        cartId: updatedCart._id,
-        newCheckTime: "20 minutes",
-      });
+      console.log(`Updated cart activity: ${updatedCart._id}`);
     } else {
       // Create new cart if it doesn't exist (shouldn't happen normally)
       const newCart = await Cart.create({
-        ...buildCartData(checkout, shop, correlationId),
+        ...buildCartData(checkout, shop, correlationId, finalShopDomain),
         status: "inCheckout",
       });
-
-      logDbOperation("create", "Cart", correlationId, {
-        cartId: newCart._id,
-        action: "create_from_update",
-      });
-
-      await scheduleAbandonedCartCheck({
-        cartId: newCart._id,
-        shopifyCheckoutId: checkout.id.toString(),
-        userId: shop.userId,
-        correlationId,
-      });
+      console.log(`Created new cart from update: ${newCart._id}`);
     }
   } catch (error) {
-    logApiError(
-      "POST",
-      "/api/shopify/webhooks/checkout/update",
-      500,
-      error,
-      correlationId,
-      {
-        checkoutId: webhookData.id,
-        shop: shopDomain,
-      }
-    );
+    console.error("Checkout update error:", error);
     throw error;
   }
 }
@@ -308,7 +232,7 @@ async function handleOrderCreateWebhook(
   try {
     const order = webhookData;
 
-    logBusinessEvent("shopify_order_create", correlationId, {
+    console.log("Handling order create:", {
       orderId: order.id,
       checkoutId: order.checkout_id,
       shop: shopDomain,
@@ -318,71 +242,58 @@ async function handleOrderCreateWebhook(
     // If an order is created, it means the checkout was completed
     if (order.checkout_id) {
       // Mark the original cart as purchased
-      const purchasedCart = await Cart.markAsPurchased(
-        order.checkout_id.toString()
+      const purchasedCart = await Cart.findOneAndUpdate(
+        { shopifyCheckoutId: order.checkout_id.toString() },
+        { status: "purchased", completedAt: new Date() },
+        { new: true }
       );
 
       if (purchasedCart) {
-        logDbOperation("update", "Cart", correlationId, {
-          cartId: purchasedCart._id,
-          action: "mark_as_purchased",
-        });
-
-        // Cancel any pending abandoned cart jobs
-        await cancelCartJobs(purchasedCart._id);
-
-        // If there's an active abandoned cart record, mark it as recovered
-        const abandonedCart = await AbandonedCart.findOne({
-          shopifyCheckoutId: order.checkout_id.toString(),
-          isActive: true,
-        });
-
-        if (abandonedCart) {
-          await abandonedCart.markAsRecovered(correlationId, {
-            orderId: order.id,
-            orderValue: order.total_price,
-            recoveredBeforeCall: abandonedCart.totalCallAttempts === 0,
-          });
-
-          logBusinessEvent("abandoned_cart_recovered", correlationId, {
-            abandonedCartId: abandonedCart._id,
-            orderId: order.id,
-            recoveredBeforeCall: abandonedCart.totalCallAttempts === 0,
-          });
-        }
-
-        logBusinessEvent("cart_purchase_completed", correlationId, {
-          cartId: purchasedCart._id,
-          orderId: order.id,
-          checkoutId: order.checkout_id,
-        });
+        console.log(`Marked cart as purchased: ${purchasedCart._id}`);
       }
     }
   } catch (error) {
-    logApiError(
-      "POST",
-      "/api/shopify/webhooks/order/create",
-      500,
-      error,
-      correlationId,
-      {
-        orderId: webhookData.id,
-        checkoutId: webhookData.checkout_id,
-        shop: shopDomain,
-      }
-    );
+    console.error("Order create error:", error);
     throw error;
   }
 }
 
+// Helper function to extract shop domain from abandoned checkout URL
+function extractShopDomainFromUrl(abandonedCheckoutUrl) {
+  if (!abandonedCheckoutUrl) return null;
+
+  try {
+    const url = new URL(abandonedCheckoutUrl);
+    const hostname = url.hostname;
+
+    // Extract shop name from hostname (e.g., "culaterline.myshopify.com" -> "culaterline.myshopify.com")
+    if (hostname.endsWith(".myshopify.com")) {
+      return hostname;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error extracting shop domain from URL:", error);
+    return null;
+  }
+}
+
 // Helper function to build cart data from Shopify checkout
-function buildCartData(checkout, shop, correlationId) {
+function buildCartData(checkout, shop, correlationId, shopDomain = null) {
+  // Use provided shop domain or extract from abandoned checkout URL as fallback
+  const urlShopDomain = extractShopDomainFromUrl(
+    checkout.abandoned_checkout_url
+  );
+  const finalShopDomain = shopDomain || urlShopDomain || shop.shop;
+
   return {
+    userId: shop.userId,
+    shopId: shop._id,
+
     shopifyCheckoutId: checkout.id.toString(),
     token: checkout.token,
     cartToken: checkout.cart_token,
-    shopDomain: shop.shop,
-    userId: shop.userId,
+    shopDomain: finalShopDomain,
 
     // Customer information
     customerEmail: checkout.email,

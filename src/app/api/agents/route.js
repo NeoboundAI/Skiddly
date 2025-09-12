@@ -127,17 +127,27 @@ export async function GET(request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get all agents for this user
-    const agents = await Agent.find({ userId: user._id }).populate(
-      "shopifyShopId"
-    );
+    // Get query parameters for filtering
+    const { searchParams } = new URL(request.url);
+    const shopId = searchParams.get("shopId");
+
+    // Build query filter
+    const filter = { userId: user._id };
+    if (shopId) {
+      filter.shopifyShopId = shopId;
+    }
+
+    // Get agents for this user, optionally filtered by shop
+    const agents = await Agent.find(filter).populate("shopifyShopId");
 
     logDbOperation("read", "Agent", session.user, {
       count: agents.length,
+      shopId: shopId || "all",
     });
 
     logApiSuccess("GET", "/api/agents", 200, session.user, {
       agentCount: agents.length,
+      shopId: shopId || "all",
     });
 
     return NextResponse.json({
