@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 import { VapiClient } from "@vapi-ai/server-sdk";
 import {
   logApiError,
@@ -73,16 +73,9 @@ export async function POST(request) {
       }
     );
 
-    logApiError(
-      "POST",
-      "/api/vapi/assistants",
-      500,
-      error,
-      session?.user,
-      {
-        assistantName: body?.name,
-      }
-    );
+    logApiError("POST", "/api/vapi/assistants", 500, error, session?.user, {
+      assistantName: body?.name,
+    });
 
     return NextResponse.json(
       { error: "Failed to create assistant" },

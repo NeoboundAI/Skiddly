@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 import { exchangeCodeForToken } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";

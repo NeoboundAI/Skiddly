@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateShopifyAuthUrl, validateShopDomain } from "@/lib/shopify";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import ShopifyShop from "@/models/ShopifyShop";
@@ -15,7 +15,7 @@ import {
 } from "@/lib/apiLogger";
 
 export async function POST(request) {
- let session;
+  let session;
 
   try {
     session = await getServerSession(authOptions);

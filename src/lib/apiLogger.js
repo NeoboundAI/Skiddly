@@ -277,9 +277,7 @@ export const withApiLogging = (handler, routeName) => {
     try {
       // Get session for user identification (each route should handle this)
       const { getServerSession } = await import("next-auth");
-      const { authOptions } = await import(
-        "@/app/api/auth/[...nextauth]/route"
-      );
+      const { authOptions } = await import("@/lib/auth");
       const session = await getServerSession(authOptions);
       userInfo = session?.user || null;
 
