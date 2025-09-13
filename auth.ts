@@ -66,13 +66,9 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   providers: [
     Google({
       clientId:
-        process.env.AUTH_GOOGLE_ID ||
-        process.env.GOOGLE_ID ||
-        "501217373542-nmh7lm44ublt2ge39i8jk9j9cv14rlt1.apps.googleusercontent.com",
+        process.env.AUTH_GOOGLE_ID,
       clientSecret:
-        process.env.AUTH_GOOGLE_SECRET ||
-        process.env.GOOGLE_SECRET ||
-        "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",
+        process.env.AUTH_GOOGLE_SECRET
     }),
     Credentials({
       name: "credentials",
