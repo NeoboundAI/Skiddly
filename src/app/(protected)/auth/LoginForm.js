@@ -118,6 +118,9 @@ const LoginForm = () => {
       setError("");
       setLoading(true);
 
+      console.log("=== CLIENT-SIDE DEBUG ===");
+      console.log("Current URL:", window.location.href);
+      console.log("Origin:", window.location.origin);
       console.log("Starting Google sign in...");
 
       const result = await signIn("google", {
@@ -126,6 +129,8 @@ const LoginForm = () => {
       });
 
       console.log("Google sign in result:", result);
+      console.log("Result URL:", result?.url);
+      console.log("========================");
 
       if (result?.error) {
         console.error("Google sign in error:", result.error);
