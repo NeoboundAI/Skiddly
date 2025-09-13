@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import { VapiClient } from "@vapi-ai/server-sdk";
 import {
   logApiError,
@@ -15,7 +14,7 @@ export async function GET(request, { params }) {
   let id;
   try {
     // Get user session
-    session = await getServerSession(authOptions);
+    session = await auth();
 
     if (!session?.user?.email) {
       logAuthFailure(

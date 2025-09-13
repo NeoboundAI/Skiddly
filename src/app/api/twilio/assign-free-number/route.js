@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import connectDB from "../../../../lib/mongodb";
 import TwilioNumber from "../../../../models/TwilioNumber";
 import DefaultNumber from "../../../../models/DefaultNumber";
@@ -17,7 +16,7 @@ export async function POST(req) {
   try {
     await connectDB();
 
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.email) {
       logAuthFailure(
         "POST",
@@ -159,16 +158,10 @@ export async function POST(req) {
       maxCalls: 10,
     });
 
-    logApiSuccess(
-      "POST",
-      "/api/twilio/assign-free-number",
-      200,
-      session.user,
-      {
-        phoneNumber,
-        numberId: newNumber._id.toString(),
-      }
-    );
+    logApiSuccess("POST", "/api/twilio/assign-free-number", 200, session.user, {
+      phoneNumber,
+      numberId: newNumber._id.toString(),
+    });
 
     // Note: We don't update the DefaultNumber status
     // Free numbers can be assigned to multiple users

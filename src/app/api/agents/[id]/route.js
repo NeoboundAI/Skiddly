@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import Agent from "@/models/Agent";
@@ -16,7 +15,7 @@ export async function GET(request, { params }) {
   let id;
   try {
     // Get user session
-    session = await getServerSession(authOptions);
+    session = await auth();
 
     if (!session?.user?.email) {
       logAuthFailure(
@@ -100,7 +99,7 @@ export async function PUT(request, { params }) {
   let id;
   try {
     // Get user session
-    session = await getServerSession(authOptions);
+    session = await auth();
 
     if (!session?.user?.email) {
       logAuthFailure(

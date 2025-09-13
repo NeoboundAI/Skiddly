@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import { VapiClient } from "@vapi-ai/server-sdk";
 import connectDB from "@/lib/mongodb";
 import Agent from "@/models/Agent";
@@ -185,7 +184,7 @@ export async function POST(request, { params }) {
     const { id } = await params;
 
     // Get user session
-    session = await getServerSession(authOptions);
+    session = await auth();
 
     if (!session?.user?.email) {
       logAuthFailure(
@@ -293,11 +292,7 @@ export async function POST(request, { params }) {
           transcriber: preparedVapiConfig.transcriber,
           serverUrl: process.env.VAPI_WEBHOOK_URL,
           serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET,
-          serverMessages: [
-            "status-update",
-            "end-of-call-report",
-            "hang",
-          ],
+          serverMessages: ["status-update", "end-of-call-report", "hang"],
         });
       } catch (error) {
         logExternalApiError("VAPI", "update_assistant", error, session.user, {

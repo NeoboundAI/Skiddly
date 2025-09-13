@@ -151,19 +151,19 @@ if (process.env.NODE_ENV !== "production") {
       format: baseFormat,
     })
   );
-  // Sentry transport (only for errors)
-  if (process.env.SENTRY_DSN) {
-    const SentryTransport = require("winston-transport-sentry-node");
-    logger.add(
-      new SentryTransport({
-        sentry: {
-          dsn: process.env.SENTRY_DSN,
-          environment: process.env.NODE_ENV,
-        },
-        level: "error",
-      })
-    );
-  }
+  // // Sentry transport (only for errors)
+  // if (process.env.SENTRY_DSN) {
+  //   const SentryTransport = require("winston-transport-sentry-node");
+  //   logger.add(
+  //     new SentryTransport({
+  //       sentry: {
+  //         dsn: process.env.SENTRY_DSN,
+  //         environment: process.env.NODE_ENV,
+  //       },
+  //       level: "error",
+  //     })
+  //   );
+  // }
 }
 
 // Create a stream object for Morgan HTTP logging

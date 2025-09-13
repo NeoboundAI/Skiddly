@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/auth";
 
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
@@ -19,8 +18,8 @@ export async function GET(request) {
   let session;
 
   try {
-    // Get user session with authOptions
-    session = await getServerSession(authOptions);
+    // Get user session
+    session = await auth();
 
     console.log("session", session);
     if (!session?.user?.email) {
