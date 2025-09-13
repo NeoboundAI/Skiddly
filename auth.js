@@ -7,7 +7,6 @@ import User from "@/models/User";
 import logger from "@/lib/logger";
 console.log("=== AUTH DEBUG INFO ===");
 
-
 console.log("process.env.NEXTAUTH_URL", process.env.NEXTAUTH_URL);
 console.log("process.env.NODE_ENV", process.env.NODE_ENV);
 console.log("process.env.VERCEL_URL", process.env.VERCEL_URL);
@@ -27,6 +26,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       // Explicitly set the redirect URI to force the correct URL
       redirectUri: process.env.NEXTAUTH_URL
         ? `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
+        : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}/api/auth/callback/google`
         : undefined,
     }),
     Credentials({
