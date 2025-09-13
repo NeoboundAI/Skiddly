@@ -5,12 +5,7 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import logger from "@/lib/logger";
-console.log("=== AUTH DEBUG INFO ===");
 
-console.log("process.env.NEXTAUTH_URL", process.env.NEXTAUTH_URL);
-console.log("process.env.NODE_ENV", process.env.NODE_ENV);
-console.log("process.env.VERCEL_URL", process.env.VERCEL_URL);
-console.log("=========================");
 export const { auth, handlers, signIn, signOut } = NextAuth({
   providers: [
     Google({
@@ -23,15 +18,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           response_type: "code",
         },
       },
-      // Explicitly set the redirect URI to force the correct URL
-      redirectUri:
-        process.env.NODE_ENV === "production"
-          ? `https://skiddly-a37q.vercel.app/api/auth/callback/google`
-          : process.env.NEXTAUTH_URL
-          ? `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
-          : process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}/api/auth/callback/google`
-          : undefined,
     }),
     Credentials({
       name: "credentials",
