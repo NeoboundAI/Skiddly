@@ -29,9 +29,9 @@ export async function POST(request) {
     }
 
     // Ensure we use HTTPS for webhook URLs (Shopify requirement)
-    let webhookUrl = `${process.env.NEXTAUTH_URL}/api/shopify/webhooks`;
+    let webhookUrl = `${process.env.AUTH_URL}/api/shopify/webhooks`;
 
-    // For development, if NEXTAUTH_URL is HTTP, we need to use a public HTTPS URL
+    // For development, if AUTH_URL is HTTP, we need to use a public HTTPS URL
     if (
       process.env.NODE_ENV === "development" &&
       webhookUrl.startsWith("http://")

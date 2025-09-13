@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import { default as mongoose } from "mongoose";
 
 // PUT YOUR MONGODB URI HERE
 const MONGODB_URI =

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import { exchangeCodeForToken } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
@@ -23,7 +22,7 @@ export async function GET(request) {
     const error = searchParams.get("error");
 
     // Get session for user identification
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     const userInfo = session?.user || null;
 
     logBusinessEvent("shopify_callback_received", userInfo, {
@@ -49,7 +48,7 @@ export async function GET(request) {
         state,
       });
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/dashboard?error=shopify_auth_denied`
+        `${process.env.AUTH_URL}/dashboard?error=shopify_auth_denied`
       );
     }
 
@@ -76,7 +75,7 @@ export async function GET(request) {
         }
       );
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/dashboard?error=invalid_callback_params`
+        `${process.env.AUTH_URL}/dashboard?error=invalid_callback_params`
       );
     }
 
@@ -98,7 +97,7 @@ export async function GET(request) {
       // Clean up any stale connections for this state
       await ShopifyShop.deleteMany({ oauthState: state });
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/dashboard?error=invalid_state`
+        `${process.env.AUTH_URL}/dashboard?error=invalid_state`
       );
     }
 
@@ -117,7 +116,7 @@ export async function GET(request) {
         }
       );
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/dashboard?error=user_not_found`
+        `${process.env.AUTH_URL}/dashboard?error=user_not_found`
       );
     }
 
@@ -155,9 +154,9 @@ export async function GET(request) {
     // Register webhooks automatically after successful connection
     try {
       // Ensure we use HTTPS for webhook URLs (Shopify requirement)
-      let webhookUrl = `${process.env.NEXTAUTH_URL}/api/shopify/webhooks`;
+      let webhookUrl = `${process.env.AUTH_URL}/api/shopify/webhooks`;
 
-      // For development, if NEXTAUTH_URL is HTTP, we need to use a public HTTPS URL
+      // For development, if AUTH_URL is HTTP, we need to use a public HTTPS URL
       if (
         process.env.NODE_ENV === "development" &&
         webhookUrl.startsWith("http://")
@@ -186,7 +185,7 @@ export async function GET(request) {
 
           // Don't proceed with webhook registration in development without HTTPS
           return NextResponse.redirect(
-            `${process.env.NEXTAUTH_URL}/dashboard?success=shopify_connected&webhook_skipped=true`
+            `${process.env.AUTH_URL}/dashboard?success=shopify_connected&webhook_skipped=true`
           );
         }
       }
@@ -423,11 +422,11 @@ export async function GET(request) {
     });
 
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/dashboard?success=shopify_connected`
+      `${process.env.AUTH_URL}/dashboard?success=shopify_connected`
     );
   } catch (error) {
     // Get session for error logging
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     const userInfo = session?.user || null;
 
     logApiError("GET", "/api/shopify/callback", 500, error, userInfo, {
@@ -440,7 +439,7 @@ export async function GET(request) {
       await ShopifyShop.deleteMany({ oauthState: state });
     }
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/dashboard?error=token_exchange_failed`
+      `${process.env.AUTH_URL}/dashboard?error=token_exchange_failed`
     );
   }
 }

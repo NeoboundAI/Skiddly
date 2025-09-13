@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../[...nextauth]/route";
+import { auth } from "@/auth";
 import connectDB from "../../../../lib/mongodb";
 import User from "../../../../models/User";
 import {
@@ -15,7 +14,7 @@ export async function POST(request) {
   try {
     await connectDB();
 
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session) {
       logAuthFailure("POST", "/api/auth/update-plan", null, "No session");
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
