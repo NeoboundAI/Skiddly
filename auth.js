@@ -298,7 +298,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     maxAge: 24 * 60 * 60, // 24 hours
     updateAge: 60 * 60, // Update session every hour
   },
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  secret: process.env.AUTH_SECRET,
   debug: process.env.NODE_ENV === "development", // Enable debug in development
   trustHost: true, // Required for NextAuth v5
 });
