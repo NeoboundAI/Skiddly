@@ -118,40 +118,15 @@ const LoginForm = () => {
       setError("");
       setLoading(true);
 
-      console.log("=== CLIENT-SIDE DEBUG ===");
-      console.log("Current URL:", window.location.href);
-      console.log("Origin:", window.location.origin);
       console.log("Starting Google sign in...");
 
-      const result = await signIn("google", {
-        redirect: false,
-        callbackUrl: "/dashboard", // Add explicit callback URL
+      // Use default redirect behavior for OAuth
+      await signIn("google", {
+        callbackUrl: "/dashboard",
       });
-
-      console.log("Google sign in result:", result);
-      console.log("Result URL:", result?.url);
-      console.log("========================");
-
-      if (result?.error) {
-        console.error("Google sign in error:", result.error);
-        setError(`Google sign in failed: ${result.error}`);
-      } else if (result?.ok && result?.url) {
-        // Redirect to Google OAuth URL
-        console.log("Redirecting to Google OAuth:", result.url);
-        window.location.href = result.url;
-      } else if (result?.ok) {
-        // Google sign in successful - AuthWrapper will handle routing based on onboarding status
-        console.log(
-          "Google sign in successful, AuthWrapper will handle routing"
-        );
-      } else {
-        console.log("Google sign in result:", result);
-        setError("Google sign in failed. Please try again.");
-      }
     } catch (error) {
       console.error("Google sign in error:", error);
       setError(`Google sign in failed: ${error.message}`);
-    } finally {
       setLoading(false);
     }
   };
