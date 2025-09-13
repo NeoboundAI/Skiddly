@@ -10,10 +10,13 @@ export async function GET() {
     GOOGLE_SECRET: process.env.GOOGLE_SECRET ? "SET" : "NOT SET",
     AUTH_SECRET: process.env.AUTH_SECRET ? "SET" : "NOT SET",
     // Show what the redirect URI would be
-    CALCULATED_REDIRECT_URI: process.env.NEXTAUTH_URL
-      ? `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
-      : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}/api/auth/callback/google`
-      : "UNDEFINED",
+    CALCULATED_REDIRECT_URI:
+      process.env.NODE_ENV === "production"
+        ? `https://skiddly-a37q.vercel.app/api/auth/callback/google`
+        : process.env.NEXTAUTH_URL
+        ? `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
+        : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}/api/auth/callback/google`
+        : "UNDEFINED",
   });
 }

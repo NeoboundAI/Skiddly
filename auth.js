@@ -24,11 +24,14 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         },
       },
       // Explicitly set the redirect URI to force the correct URL
-      redirectUri: process.env.NEXTAUTH_URL
-        ? `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
-        : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}/api/auth/callback/google`
-        : undefined,
+      redirectUri:
+        process.env.NODE_ENV === "production"
+          ? `https://skiddly-a37q.vercel.app/api/auth/callback/google`
+          : process.env.NEXTAUTH_URL
+          ? `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
+          : process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}/api/auth/callback/google`
+          : undefined,
     }),
     Credentials({
       name: "credentials",
