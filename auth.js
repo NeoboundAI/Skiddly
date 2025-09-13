@@ -26,8 +26,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         },
       },
       // Explicitly set the redirect URI to force the correct URL
-      redirectUri: process.env.AUTH_URL
-        ? `${process.env.AUTH_URL}/api/auth/callback/google`
+      redirectUri: process.env.NEXTAUTH_URL
+        ? `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
         : undefined,
     }),
     Credentials({

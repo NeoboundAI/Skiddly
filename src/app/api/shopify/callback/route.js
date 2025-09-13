@@ -48,7 +48,7 @@ export async function GET(request) {
         state,
       });
       return NextResponse.redirect(
-        `${process.env.AUTH_URL}/dashboard?error=shopify_auth_denied`
+        `${process.env.NEXTAUTH_URL}/dashboard?error=shopify_auth_denied`
       );
     }
 
@@ -75,7 +75,7 @@ export async function GET(request) {
         }
       );
       return NextResponse.redirect(
-        `${process.env.AUTH_URL}/dashboard?error=invalid_callback_params`
+        `${process.env.NEXTAUTH_URL}/dashboard?error=invalid_callback_params`
       );
     }
 
@@ -97,7 +97,7 @@ export async function GET(request) {
       // Clean up any stale connections for this state
       await ShopifyShop.deleteMany({ oauthState: state });
       return NextResponse.redirect(
-        `${process.env.AUTH_URL}/dashboard?error=invalid_state`
+        `${process.env.NEXTAUTH_URL}/dashboard?error=invalid_state`
       );
     }
 
@@ -116,7 +116,7 @@ export async function GET(request) {
         }
       );
       return NextResponse.redirect(
-        `${process.env.AUTH_URL}/dashboard?error=user_not_found`
+        `${process.env.NEXTAUTH_URL}/dashboard?error=user_not_found`
       );
     }
 
@@ -154,9 +154,9 @@ export async function GET(request) {
     // Register webhooks automatically after successful connection
     try {
       // Ensure we use HTTPS for webhook URLs (Shopify requirement)
-      let webhookUrl = `${process.env.AUTH_URL}/api/shopify/webhooks`;
+      let webhookUrl = `${process.env.NEXTAUTH_URL}/api/shopify/webhooks`;
 
-      // For development, if AUTH_URL is HTTP, we need to use a public HTTPS URL
+      // For development, if NEXTAUTH_URL is HTTP, we need to use a public HTTPS URL
       if (
         process.env.NODE_ENV === "development" &&
         webhookUrl.startsWith("http://")
@@ -185,7 +185,7 @@ export async function GET(request) {
 
           // Don't proceed with webhook registration in development without HTTPS
           return NextResponse.redirect(
-            `${process.env.AUTH_URL}/dashboard?success=shopify_connected&webhook_skipped=true`
+            `${process.env.NEXTAUTH_URL}/dashboard?success=shopify_connected&webhook_skipped=true`
           );
         }
       }
@@ -422,7 +422,7 @@ export async function GET(request) {
     });
 
     return NextResponse.redirect(
-      `${process.env.AUTH_URL}/dashboard?success=shopify_connected`
+      `${process.env.NEXTAUTH_URL}/dashboard?success=shopify_connected`
     );
   } catch (error) {
     // Get session for error logging
@@ -439,7 +439,7 @@ export async function GET(request) {
       await ShopifyShop.deleteMany({ oauthState: state });
     }
     return NextResponse.redirect(
-      `${process.env.AUTH_URL}/dashboard?error=token_exchange_failed`
+      `${process.env.NEXTAUTH_URL}/dashboard?error=token_exchange_failed`
     );
   }
 }

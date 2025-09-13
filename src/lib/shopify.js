@@ -5,7 +5,7 @@ const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
 const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES;
 const SHOPIFY_REDIRECT_URI =
   process.env.SHOPIFY_REDIRECT_URI ||
-  `${process.env.AUTH_URL}/api/shopify/callback`;
+  `${process.env.NEXTAUTH_URL}/api/shopify/callback`;
 
 export function generateShopifyAuthUrl(shop) {
   const nonce = crypto.randomBytes(16).toString("hex");
