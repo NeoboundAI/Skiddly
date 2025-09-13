@@ -197,22 +197,34 @@ const RegisterForm = () => {
       setError("");
       setLoading(true);
 
+      console.log("Starting Google sign in...");
+
       const result = await signIn("google", {
         redirect: false,
+        callbackUrl: "/dashboard", // Add explicit callback URL
       });
 
+      console.log("Google sign in result:", result);
+
       if (result?.error) {
-        setError("Google sign in failed. Please try again.");
+        console.error("Google sign in error:", result.error);
+        setError(`Google sign in failed: ${result.error}`);
+      } else if (result?.ok && result?.url) {
+        // Redirect to Google OAuth URL
+        console.log("Redirecting to Google OAuth:", result.url);
+        window.location.href = result.url;
       } else if (result?.ok) {
         // Google sign in successful - AuthWrapper will handle routing based on onboarding status
-        // No need to redirect here, let AuthWrapper determine the correct path
         console.log(
           "Google sign in successful, AuthWrapper will handle routing"
         );
+      } else {
+        console.log("Google sign in result:", result);
+        setError("Google sign in failed. Please try again.");
       }
     } catch (error) {
       console.error("Google sign in error:", error);
-      setError("Google sign in failed. Please try again.");
+      setError(`Google sign in failed: ${error.message}`);
     } finally {
       setLoading(false);
     }

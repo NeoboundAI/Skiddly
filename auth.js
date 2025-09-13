@@ -5,14 +5,20 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import logger from "@/lib/logger";
-
+console.log("process.env.GOOGLE_ID", process.env.GOOGLE_ID);
+console.log("process.env.GOOGLE_SECRET", process.env.GOOGLE_SECRET);
 export const { auth, handlers, signIn, signOut } = NextAuth({
   providers: [
     Google({
-      clientId:
-        process.env.GOOGLE_ID,
-      clientSecret:
-        process.env.GOOGLE_SECRET
+      clientId: process.env.GOOGLE_ID,
+      clientSecret: process.env.GOOGLE_SECRET,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+        },
+      },
     }),
     Credentials({
       name: "credentials",
@@ -293,5 +299,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     updateAge: 60 * 60, // Update session every hour
   },
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
-  debug: false, // Disable debug to reduce console noise
+  debug: process.env.NODE_ENV === "development", // Enable debug in development
+  trustHost: true, // Required for NextAuth v5
 });
