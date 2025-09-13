@@ -128,8 +128,24 @@ if (process.env.NODE_ENV !== "production") {
     })
   );
 } else {
-  // Production: File transports only (no console)
-  // Daily rotate file transport
+  // Production: Console transport only (no file logging to avoid EROFS errors)
+  logger.add(
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+      ),
+      level: "info",
+      handleExceptions: true,
+      handleRejections: true,
+    })
+  );
+
+  // TODO: Enable file logging when deploying to AWS
+  // File logging disabled for Vercel serverless environment
+  // Uncomment below when deploying to AWS:
+  /*
   logger.add(
     new DailyRotateFile({
       filename: "logs/combined-%DATE%.log",
@@ -140,7 +156,6 @@ if (process.env.NODE_ENV !== "production") {
       format: baseFormat,
     })
   );
-  // Error file transport (separate file for errors)
   logger.add(
     new DailyRotateFile({
       filename: "logs/error-%DATE%.log",
@@ -151,19 +166,7 @@ if (process.env.NODE_ENV !== "production") {
       format: baseFormat,
     })
   );
-  // // Sentry transport (only for errors)
-  // if (process.env.SENTRY_DSN) {
-  //   const SentryTransport = require("winston-transport-sentry-node");
-  //   logger.add(
-  //     new SentryTransport({
-  //       sentry: {
-  //         dsn: process.env.SENTRY_DSN,
-  //         environment: process.env.NODE_ENV,
-  //       },
-  //       level: "error",
-  //     })
-  //   );
-  // }
+  */
 }
 
 // Create a stream object for Morgan HTTP logging
