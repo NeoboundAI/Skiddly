@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/cart-scanner",
+      "schedule": "*/10 * * * * *"
+    },
+    {
+      "path": "/api/cron/call-processor",
+      "schedule": "*/5 * * * * *"
+    }
+  ]
+}

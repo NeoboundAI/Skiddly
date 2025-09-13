@@ -30,10 +30,24 @@ class QueueService {
     try {
       this.isInitialized = true;
 
-      logBusinessEvent("queue_service_initialized", null, {
-        timezone: this.defaultTimezone,
-        scheduler: "node-cron",
-      });
+      // Check if we're in a serverless environment (Vercel)
+      if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+        console.log(
+          "🌐 Serverless environment detected - using Vercel Cron Jobs"
+        );
+        logBusinessEvent("queue_service_initialized", null, {
+          timezone: this.defaultTimezone,
+          scheduler: "vercel-cron",
+          environment: "serverless",
+        });
+      } else {
+        console.log("🖥️ Local environment - using node-cron");
+        logBusinessEvent("queue_service_initialized", null, {
+          timezone: this.defaultTimezone,
+          scheduler: "node-cron",
+          environment: "local",
+        });
+      }
 
       console.log("✅ QueueService initialized successfully");
     } catch (error) {
@@ -121,7 +135,53 @@ class QueueService {
       }
     };
 
-    // Create the cron job
+    // Check if we're in a serverless environment
+    if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+      console.log(
+        `🌐 Serverless environment - job ${jobId} will be handled by Vercel Cron`
+      );
+
+      // Store job info without creating actual cron job
+      this.jobs.set(jobId, {
+        cronJob: null, // No actual cron job in serverless
+        schedule,
+        taskFunction: wrappedTaskFunction,
+        options,
+        createdAt: new Date(),
+        isRunning: false,
+        isServerless: true,
+      });
+
+      // Run initial execution if requested (only in serverless)
+      if (runOnStart) {
+        if (startDelay > 0) {
+          console.log(
+            `⏱️ Scheduling initial run of ${jobId} in ${startDelay}ms`
+          );
+          setTimeout(() => {
+            wrappedTaskFunction();
+          }, startDelay);
+        } else {
+          setTimeout(() => {
+            wrappedTaskFunction();
+          }, 100); // Small delay to avoid blocking
+        }
+      }
+
+      logBusinessEvent("queue_job_registered", null, {
+        jobId,
+        schedule,
+        timezone,
+        runOnStart,
+        startDelay,
+        environment: "serverless",
+        ...metadata,
+      });
+
+      return jobId;
+    }
+
+    // Local environment - use node-cron
     const cronJob = cron.schedule(schedule, wrappedTaskFunction, {
       scheduled: false, // Don't start automatically
       timezone,
@@ -131,10 +191,11 @@ class QueueService {
     this.jobs.set(jobId, {
       cronJob,
       schedule,
-      taskFunction,
+      taskFunction: wrappedTaskFunction,
       options,
       createdAt: new Date(),
       isRunning: false,
+      isServerless: false,
     });
 
     // Start the job
@@ -161,6 +222,7 @@ class QueueService {
       timezone,
       runOnStart,
       startDelay,
+      environment: "local",
       ...metadata,
     });
 
@@ -178,7 +240,11 @@ class QueueService {
       return false;
     }
 
-    job.cronJob.stop();
+    // Only stop cron job if it exists (not in serverless mode)
+    if (job.cronJob) {
+      job.cronJob.stop();
+    }
+
     this.jobs.delete(jobId);
     this.runningTasks.delete(jobId);
 
@@ -187,6 +253,7 @@ class QueueService {
     logBusinessEvent("queue_job_stopped", null, {
       jobId,
       schedule: job.schedule,
+      environment: job.isServerless ? "serverless" : "local",
     });
 
     return true;
