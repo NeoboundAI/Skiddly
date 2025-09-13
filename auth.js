@@ -5,70 +5,14 @@ import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import logger from "@/lib/logger";
-import type { NextAuthConfig } from "next-auth";
-
-// Extend the built-in session/user types
-declare module "next-auth" {
-  interface User {
-    id: string;
-    email: string;
-    name?: string | null;
-    image?: string | null;
-    emailVerified?: boolean;
-    provider?: string;
-    onboardingCompleted?: boolean;
-    role?: string;
-    permissions?: any;
-    plan?: string;
-    credits?: number;
-    createdAt?: Date;
-    updatedAt?: Date;
-    shopify?: any;
-  }
-
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      name?: string | null;
-      image?: string | null;
-      emailVerified?: boolean;
-      provider?: string;
-      onboardingCompleted?: boolean;
-      role?: string;
-      permissions?: any;
-      plan?: string;
-      credits?: number;
-      createdAt?: Date;
-      updatedAt?: Date;
-      shopify?: any;
-    };
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id: string;
-    emailVerified?: boolean;
-    provider?: string;
-    onboardingCompleted?: boolean;
-    role?: string;
-    permissions?: any;
-    plan?: string;
-    credits?: number;
-    createdAt?: Date;
-    updatedAt?: Date;
-    shopify?: any;
-  }
-}
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
   providers: [
     Google({
       clientId:
-        process.env.AUTH_GOOGLE_ID,
+        process.env.GOOGLE_ID,
       clientSecret:
-        process.env.AUTH_GOOGLE_SECRET
+        process.env.GOOGLE_SECRET
     }),
     Credentials({
       name: "credentials",
@@ -83,8 +27,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             throw new Error("Email and password are required");
           }
 
-          const email = (credentials.email as string).trim().toLowerCase();
-          const password = credentials.password as string;
+          const email = credentials.email.trim().toLowerCase();
+          const password = credentials.password;
 
           // Email format validation
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -128,7 +72,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           // Verify password
           const isCorrectPassword = await bcrypt.compare(
             password,
-            user.password as string
+            user.password
           );
 
           if (!isCorrectPassword) {
@@ -187,17 +131,17 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     async jwt({ token, user, account }) {
       // Initial sign in
       if (user) {
-        token.id = (user as any).id;
-        token.emailVerified = (user as any).emailVerified;
-        token.provider = (user as any).provider;
-        token.onboardingCompleted = (user as any).onboardingCompleted;
-        token.role = (user as any).role;
-        token.permissions = (user as any).permissions;
-        token.plan = (user as any).plan;
-        token.credits = (user as any).credits;
-        token.createdAt = (user as any).createdAt;
-        token.updatedAt = (user as any).updatedAt;
-        token.shopify = (user as any).shopify;
+        token.id = user.id;
+        token.emailVerified = user.emailVerified;
+        token.provider = user.provider;
+        token.onboardingCompleted = user.onboardingCompleted;
+        token.role = user.role;
+        token.permissions = user.permissions;
+        token.plan = user.plan;
+        token.credits = user.credits;
+        token.createdAt = user.createdAt;
+        token.updatedAt = user.updatedAt;
+        token.shopify = user.shopify;
       }
 
       // For existing sessions, fetch user data from database
@@ -230,17 +174,17 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       if (token) {
-        (session.user as any).id = token.id;
-        (session.user as any).emailVerified = token.emailVerified;
-        (session.user as any).provider = token.provider;
-        (session.user as any).onboardingCompleted = token.onboardingCompleted;
-        (session.user as any).role = token.role;
-        (session.user as any).permissions = token.permissions;
-        (session.user as any).plan = token.plan;
-        (session.user as any).credits = token.credits;
-        (session.user as any).createdAt = token.createdAt;
-        (session.user as any).updatedAt = token.updatedAt;
-        (session.user as any).shopify = token.shopify;
+        session.user.id = token.id;
+        session.user.emailVerified = token.emailVerified;
+        session.user.provider = token.provider;
+        session.user.onboardingCompleted = token.onboardingCompleted;
+        session.user.role = token.role;
+        session.user.permissions = token.permissions;
+        session.user.plan = token.plan;
+        session.user.credits = token.credits;
+        session.user.createdAt = token.createdAt;
+        session.user.updatedAt = token.updatedAt;
+        session.user.shopify = token.shopify;
       }
       return session;
     },
@@ -288,16 +232,16 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             });
 
             // Return user object with ID for JWT callback
-            (user as any).id = newUser._id.toString();
-            (user as any).emailVerified = newUser.emailVerified;
-            (user as any).provider = newUser.provider;
-            (user as any).onboardingCompleted = newUser.onboardingCompleted;
-            (user as any).role = newUser.role;
-            (user as any).permissions = newUser.permissions;
-            (user as any).plan = newUser.plan;
-            (user as any).credits = newUser.credits;
-            (user as any).createdAt = newUser.createdAt;
-            (user as any).updatedAt = newUser.updatedAt;
+            user.id = newUser._id.toString();
+            user.emailVerified = newUser.emailVerified;
+            user.provider = newUser.provider;
+            user.onboardingCompleted = newUser.onboardingCompleted;
+            user.role = newUser.role;
+            user.permissions = newUser.permissions;
+            user.plan = newUser.plan;
+            user.credits = newUser.credits;
+            user.createdAt = newUser.createdAt;
+            user.updatedAt = newUser.updatedAt;
           } else {
             // Update existing user's Google info
             await User.findByIdAndUpdate(userExists._id, {
@@ -314,16 +258,16 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             });
 
             // Return user object with ID for JWT callback
-            (user as any).id = userExists._id.toString();
-            (user as any).emailVerified = userExists.emailVerified;
-            (user as any).provider = userExists.provider;
-            (user as any).onboardingCompleted = userExists.onboardingCompleted;
-            (user as any).role = userExists.role;
-            (user as any).permissions = userExists.permissions;
-            (user as any).plan = userExists.plan;
-            (user as any).credits = userExists.credits;
-            (user as any).createdAt = userExists.createdAt;
-            (user as any).updatedAt = userExists.updatedAt;
+            user.id = userExists._id.toString();
+            user.emailVerified = userExists.emailVerified;
+            user.provider = userExists.provider;
+            user.onboardingCompleted = userExists.onboardingCompleted;
+            user.role = userExists.role;
+            user.permissions = userExists.permissions;
+            user.plan = userExists.plan;
+            user.credits = userExists.credits;
+            user.createdAt = userExists.createdAt;
+            user.updatedAt = userExists.updatedAt;
           }
 
           return true;

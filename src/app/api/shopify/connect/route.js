@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateShopifyAuthUrl, validateShopDomain } from "@/lib/shopify";
-gimport { auth } from "@/auth";
+import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import ShopifyShop from "@/models/ShopifyShop";
