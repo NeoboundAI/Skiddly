@@ -3,7 +3,6 @@ import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
 import Agent from "@/models/Agent";
-import ShopifyShop from "@/models/ShopifyShop";
 import {
   logApiError,
   logApiSuccess,
