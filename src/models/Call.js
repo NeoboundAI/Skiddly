@@ -123,11 +123,11 @@ const CallSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-  
+
     vapiCallId: {
-    type: String,
-    default: null,
-  },
+      type: String,
+      default: null,
+    },
 
     // Call transcript (if available)
     transcript: {
@@ -176,10 +176,11 @@ const CallSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Webhook data received from VAPI
-    webhookData: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
+    // Next call time for retry attempts
+    nextCallTime: {
+      type: Date,
+      default: null,
+      index: true,
     },
   },
   {

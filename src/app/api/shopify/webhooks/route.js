@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyShopifyWebhook } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import Cart from "@/models/Cart";
+import AbandonedCart from "@/models/AbandonedCart";
 import ShopifyShop from "@/models/ShopifyShop";
 import { generateWebhookCorrelationId } from "@/utils/correlationUtils";
 
@@ -223,7 +224,7 @@ async function handleCheckoutUpdateWebhook(
   }
 }
 
-// Handle order create webhook - mark cart as purchased
+// Handle order create webhook - mark cart as purchased and update abandoned cart status
 async function handleOrderCreateWebhook(
   webhookData,
   shopDomain,
@@ -250,6 +251,62 @@ async function handleOrderCreateWebhook(
 
       if (purchasedCart) {
         console.log(`Marked cart as purchased: ${purchasedCart._id}`);
+      }
+
+      // Find and update the corresponding abandoned cart
+      const abandonedCart = await AbandonedCart.findOne({
+        shopifyCheckoutId: order.checkout_id.toString(),
+      });
+
+      if (abandonedCart) {
+        // Determine recovery status based on call attempts
+        const recoveryStatus =
+          abandonedCart.totalAttempts > 0 ? "recovered" : "converted";
+        const recoveryDescription =
+          abandonedCart.totalAttempts > 0
+            ? "Purchase completed after intervention - Customer bought after our call/SMS"
+            : "Purchase completed before intervention - Customer bought before we could contact";
+
+        // Update abandoned cart with recovery information
+        const updatedAbandonedCart = await AbandonedCart.findOneAndUpdate(
+          { shopifyCheckoutId: order.checkout_id.toString() },
+          {
+            orderStage: recoveryStatus,
+            finalAction: recoveryDescription,
+            nextAttemptShouldBeMade: false,
+            isEligibleForQueue: false,
+            completedAt: new Date(),
+            recoveryStatus: recoveryStatus,
+            recoveryDescription: recoveryDescription,
+            totalAttempts: abandonedCart.totalAttempts,
+            lastRecoveryAttempt:
+              abandonedCart.totalAttempts > 0
+                ? abandonedCart.lastAttemptTime
+                : null,
+          },
+          { new: true }
+        );
+
+        console.log(
+          `Marked abandoned cart as ${recoveryStatus}: ${updatedAbandonedCart._id}`
+        );
+        console.log(`Recovery details: ${recoveryDescription}`);
+        console.log(`Total call attempts made: ${abandonedCart.totalAttempts}`);
+
+        // Log business event for recovery tracking
+        console.log(`📊 Recovery Event: ${recoveryStatus.toUpperCase()}`, {
+          abandonedCartId: updatedAbandonedCart._id,
+          cartId: purchasedCart._id,
+          totalAttempts: abandonedCart.totalAttempts,
+          recoveryStatus: recoveryStatus,
+          orderValue: order.total_price,
+          shopDomain: shopDomain,
+          correlationId: correlationId,
+        });
+      } else {
+        console.log(
+          `No abandoned cart found for checkout: ${order.checkout_id}`
+        );
       }
     }
   } catch (error) {

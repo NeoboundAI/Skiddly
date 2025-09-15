@@ -218,6 +218,104 @@ class CallQueueProcessor {
           return;
         }
 
+        // Check eligibility based on agent conditions
+        console.log(
+          `🔍 Starting eligibility check for call queue entry: ${callId}`
+        );
+        console.log(
+          `🔍 Agent data:`,
+          JSON.stringify(
+            {
+              agentId: agent._id,
+              conditions: agent.callLogic?.conditions || [],
+              conditionsCount: agent.callLogic?.conditions?.length || 0,
+            },
+            null,
+            2
+          )
+        );
+        console.log(
+          `🔍 Cart data:`,
+          JSON.stringify(
+            {
+              cartId: cart._id,
+              totalPrice: cart.totalPrice,
+              customerId: cart.customerId,
+            },
+            null,
+            2
+          )
+        );
+
+        let eligibilityCheck;
+        try {
+          eligibilityCheck = await this.checkCallEligibility(
+            agent,
+            cart,
+            abandonedCart
+          );
+          console.log(
+            `🔍 Eligibility check completed for call queue entry: ${callId}`
+          );
+          console.log(
+            `🔍 Eligibility result:`,
+            JSON.stringify(eligibilityCheck, null, 2)
+          );
+        } catch (eligibilityError) {
+          console.error(
+            `❌ Error during eligibility check for ${callId}:`,
+            eligibilityError
+          );
+          await this.updateCallQueueStatus(
+            callId,
+            "failed",
+            `Eligibility check error: ${eligibilityError.message}`
+          );
+          return;
+        }
+        if (!eligibilityCheck.isEligible) {
+          console.log(
+            `Call not eligible for queue entry: ${callId}. Reasons: ${eligibilityCheck.reasons.join(
+              ", "
+            )}`
+          );
+
+          // Update abandoned cart with reasons for not qualifying
+          await AbandonedCart.findByIdAndUpdate(abandonedCart._id, {
+            isQualified: false,
+            reasonOfNotQualified: eligibilityCheck.reasons,
+            isEligibleForQueue: false,
+            orderStage: "not-qualified",
+          });
+
+          await this.updateCallQueueStatus(
+            callId,
+            "failed",
+            `Not eligible: ${eligibilityCheck.reasons.join(", ")}`
+          );
+
+          // Log business event for ineligible call
+          logBusinessEvent("call_not_eligible", updatedCall.userId, {
+            callQueueId: callId,
+            agentId: agent._id,
+            cartId: cart._id,
+            reasons: eligibilityCheck.reasons,
+            correlationId: updatedCall.correlationId,
+          });
+
+          return;
+        }
+
+        console.log(`✅ Call eligible for queue entry: ${callId}`);
+
+        // Log business event for eligible call
+        logBusinessEvent("call_eligible", updatedCall.userId, {
+          callQueueId: callId,
+          agentId: agent._id,
+          cartId: cart._id,
+          correlationId: updatedCall.correlationId,
+        });
+
         const phoneNumberConfig = agent.testLaunch?.connectedPhoneNumbers?.[0];
         console.log(
           "Phone number config:",
@@ -417,6 +515,282 @@ class CallQueueProcessor {
   }
 
   /**
+   * Check if a call is eligible based on agent conditions
+   */
+  async checkCallEligibility(agent, cart, abandonedCart) {
+    console.log(
+      `🔍 checkCallEligibility method called with agent: ${agent._id}, cart: ${cart._id}`
+    );
+    const reasons = [];
+    const conditions = agent.callLogic?.conditions || [];
+
+    console.log(
+      `🔍 Checking eligibility for cart ${cart._id} against ${conditions.length} conditions`
+    );
+
+    for (const condition of conditions) {
+      console.log(
+        `🔍 Processing condition: ${condition.type}, enabled: ${
+          condition.enabled
+        }, operator: ${condition.operator}, value: ${JSON.stringify(
+          condition.value
+        )}`
+      );
+
+      if (!condition.enabled) {
+        console.log(`⏭️ Skipping disabled condition: ${condition.type}`);
+        continue;
+      }
+
+      console.log(
+        `🔍 Checking condition: ${condition.type} (${condition.operator} ${condition.value})`
+      );
+
+      switch (condition.type) {
+        case "cart-value":
+          const cartValueResult = this.checkCartValueCondition(cart, condition);
+          console.log(`💰 Cart value condition result: ${cartValueResult}`);
+          if (!cartValueResult) {
+            reasons.push(
+              `Cart value ${cart.totalPrice} does not meet condition: ${condition.operator} ${condition.value}`
+            );
+          }
+          break;
+
+        case "customer-type":
+          if (!this.checkCustomerTypeCondition(cart, condition)) {
+            reasons.push(
+              `Customer type does not match condition: ${
+                condition.operator
+              } ${condition.value.join(", ")}`
+            );
+          }
+          break;
+
+        case "products":
+          if (!this.checkProductsCondition(cart, condition)) {
+            reasons.push(
+              `Products do not match condition: ${
+                condition.operator
+              } ${condition.value.join(", ")}`
+            );
+          }
+          break;
+
+        case "previous-orders":
+          if (!this.checkPreviousOrdersCondition(cart, condition)) {
+            reasons.push(
+              `Previous orders do not meet condition: ${condition.operator} ${condition.value}`
+            );
+          }
+          break;
+
+        case "location":
+          if (!this.checkLocationCondition(cart, condition)) {
+            reasons.push(
+              `Location does not match condition: ${
+                condition.operator
+              } ${condition.value.join(", ")}`
+            );
+          }
+          break;
+
+        case "coupon-code":
+          if (!this.checkCouponCodeCondition(cart, condition)) {
+            reasons.push(
+              `Coupon code does not match condition: ${
+                condition.operator
+              } ${condition.value.join(", ")}`
+            );
+          }
+          break;
+
+        case "payment-method":
+          if (!this.checkPaymentMethodCondition(cart, condition)) {
+            reasons.push(
+              `Payment method does not match condition: ${
+                condition.operator
+              } ${condition.value.join(", ")}`
+            );
+          }
+          break;
+
+        default:
+          console.log(`⚠️ Unknown condition type: ${condition.type}`);
+          break;
+      }
+    }
+
+    const isEligible = reasons.length === 0;
+    console.log(
+      `📊 Eligibility result: ${isEligible ? "ELIGIBLE" : "NOT ELIGIBLE"}${
+        reasons.length > 0 ? ` (${reasons.length} reasons)` : ""
+      }`
+    );
+
+    if (reasons.length > 0) {
+      console.log(`❌ Reasons for not being eligible:`, reasons);
+    }
+
+    return {
+      isEligible,
+      reasons,
+    };
+  }
+
+  /**
+   * Check cart value condition
+   */
+  checkCartValueCondition(cart, condition) {
+    const cartValue = parseFloat(cart.totalPrice) || 0;
+    const conditionValue = parseFloat(condition.value) || 0;
+
+    console.log(
+      `💰 Cart value check: ${cartValue} ${condition.operator} ${conditionValue}`
+    );
+
+    switch (condition.operator) {
+      case ">=":
+        const result = cartValue >= conditionValue;
+        console.log(`💰 Cart value >= result: ${result}`);
+        return result;
+      case ">":
+        return cartValue > conditionValue;
+      case "<=":
+        return cartValue <= conditionValue;
+      case "<":
+        return cartValue < conditionValue;
+      case "==":
+        return cartValue === conditionValue;
+      default:
+        console.log(`⚠️ Unknown cart value operator: ${condition.operator}`);
+        return true;
+    }
+  }
+
+  /**
+   * Check customer type condition
+   */
+  checkCustomerTypeCondition(cart, condition) {
+    // For now, we'll determine customer type based on whether they have a customerId
+    const customerType = cart.customerId ? "Returning" : "New";
+    const allowedTypes = condition.value || [];
+
+    switch (condition.operator) {
+      case "includes":
+        return allowedTypes.includes(customerType);
+      case "excludes":
+        return !allowedTypes.includes(customerType);
+      default:
+        console.log(`⚠️ Unknown customer type operator: ${condition.operator}`);
+        return true;
+    }
+  }
+
+  /**
+   * Check products condition
+   */
+  checkProductsCondition(cart, condition) {
+    const cartProducts = cart.lineItems?.map((item) => item.title) || [];
+    const requiredProducts = condition.value || [];
+
+    switch (condition.operator) {
+      case "includes":
+        return requiredProducts.some((product) =>
+          cartProducts.some((cartProduct) =>
+            cartProduct.toLowerCase().includes(product.toLowerCase())
+          )
+        );
+      case "excludes":
+        return !requiredProducts.some((product) =>
+          cartProducts.some((cartProduct) =>
+            cartProduct.toLowerCase().includes(product.toLowerCase())
+          )
+        );
+      default:
+        console.log(`⚠️ Unknown products operator: ${condition.operator}`);
+        return true;
+    }
+  }
+
+  /**
+   * Check previous orders condition
+   */
+  checkPreviousOrdersCondition(cart, condition) {
+    // This would require additional data about previous orders
+    // For now, we'll return true as we don't have this data
+    console.log(`⚠️ Previous orders condition not implemented yet`);
+    return true;
+  }
+
+  /**
+   * Check location condition
+   */
+  checkLocationCondition(cart, condition) {
+    const cartLocation =
+      cart.shippingAddress?.country || cart.shippingAddress?.province || "";
+    const allowedLocations = condition.value || [];
+
+    if (allowedLocations.length === 0) {
+      return true; // No location restrictions
+    }
+
+    switch (condition.operator) {
+      case "includes":
+        return allowedLocations.some((location) =>
+          cartLocation.toLowerCase().includes(location.toLowerCase())
+        );
+      case "excludes":
+        return !allowedLocations.some((location) =>
+          cartLocation.toLowerCase().includes(location.toLowerCase())
+        );
+      default:
+        console.log(`⚠️ Unknown location operator: ${condition.operator}`);
+        return true;
+    }
+  }
+
+  /**
+   * Check coupon code condition
+   */
+  checkCouponCodeCondition(cart, condition) {
+    const cartCoupons = cart.discountCodes?.map((dc) => dc.code) || [];
+    const requiredCoupons = condition.value || [];
+
+    if (requiredCoupons.length === 0) {
+      return true; // No coupon restrictions
+    }
+
+    switch (condition.operator) {
+      case "includes":
+        return requiredCoupons.some((coupon) =>
+          cartCoupons.some(
+            (cartCoupon) => cartCoupon.toLowerCase() === coupon.toLowerCase()
+          )
+        );
+      case "excludes":
+        return !requiredCoupons.some((coupon) =>
+          cartCoupons.some(
+            (cartCoupon) => cartCoupon.toLowerCase() === coupon.toLowerCase()
+          )
+        );
+      default:
+        console.log(`⚠️ Unknown coupon code operator: ${condition.operator}`);
+        return true;
+    }
+  }
+
+  /**
+   * Check payment method condition
+   */
+  checkPaymentMethodCondition(cart, condition) {
+    // This would require additional data about payment methods
+    // For now, we'll return true as we don't have this data
+    console.log(`⚠️ Payment method condition not implemented yet`);
+    return true;
+  }
+
+  /**
    * Update call queue status
    */
   async updateCallQueueStatus(callQueueId, status, notes = null) {
@@ -493,6 +867,42 @@ class CallQueueProcessor {
     console.log("🔄 Manually triggering call queue processing...");
     const correlationId = generateCorrelationId("manual", "call_queue_trigger");
     await this.processNextCall(correlationId);
+  }
+
+  /**
+   * Check eligibility for a specific call queue entry (for debugging)
+   */
+  async checkEligibilityForCallQueueEntry(callQueueId) {
+    try {
+      await connectDB();
+
+      const callEntry = await CallQueue.findById(callQueueId)
+        .populate("agentId")
+        .populate("cartId")
+        .populate("abandonedCartId");
+
+      if (!callEntry) {
+        return { error: "Call queue entry not found" };
+      }
+
+      const eligibilityCheck = await this.checkCallEligibility(
+        callEntry.agentId,
+        callEntry.cartId,
+        callEntry.abandonedCartId
+      );
+
+      return {
+        callQueueId,
+        isEligible: eligibilityCheck.isEligible,
+        reasons: eligibilityCheck.reasons,
+        agentId: callEntry.agentId._id,
+        cartId: callEntry.cartId._id,
+        abandonedCartId: callEntry.abandonedCartId._id,
+      };
+    } catch (error) {
+      console.error("Error checking eligibility:", error);
+      return { error: error.message };
+    }
   }
 
   /**

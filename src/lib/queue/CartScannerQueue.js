@@ -173,6 +173,7 @@ class CartScannerQueue {
     const correlationId = generateCorrelationId(
       "abandoned",
       cart.shopifyCheckoutId,
+
       parentCorrelationId
     );
     console.log(`🛒 Processing abandoned cart: ${cart.shopifyCheckoutId}`);
@@ -214,6 +215,9 @@ class CartScannerQueue {
 
     let nextCallTime = new Date();
     switch (waitTimeUnit) {
+      case "minute":
+        nextCallTime.setMinutes(nextCallTime.getMinutes() + waitTimeValue);
+        break;
       case "minutes":
         nextCallTime.setMinutes(nextCallTime.getMinutes() + waitTimeValue);
         break;
@@ -233,18 +237,32 @@ class CartScannerQueue {
     });
 
     if (existingAbandonedCart) {
-      // Update existing abandoned cart
+      // Check if we have already made call attempts
+      const hasAttempts = existingAbandonedCart.totalAttempts > 0;
       console.log(
-        `🔄 Updating existing abandoned cart for: ${cart.shopifyCheckoutId}`
+        `📊 Found existing abandoned cart with ${existingAbandonedCart.totalAttempts} attempts. Has attempts: ${hasAttempts}`
       );
-      await this.handleExistingAbandonedCart(
-        cart,
-        agent,
-        shop,
-        nextCallTime,
-        correlationId,
-        existingAbandonedCart
-      );
+
+      if (hasAttempts) {
+        console.log(
+          `⚠️ Cart ${cart.shopifyCheckoutId} already has ${existingAbandonedCart.totalAttempts} call attempts. Skipping processing to avoid interference.`
+        );
+        // Don't process if attempts have been made - let the existing call queue handle it
+        return;
+      } else {
+        // Update existing abandoned cart (no attempts made yet)
+        console.log(
+          `🔄 Updating existing abandoned cart for: ${cart.shopifyCheckoutId} (no attempts made yet)`
+        );
+        await this.handleExistingAbandonedCart(
+          cart,
+          agent,
+          shop,
+          nextCallTime,
+          correlationId,
+          existingAbandonedCart
+        );
+      }
     } else {
       // Create new abandoned cart
       console.log(
@@ -268,7 +286,7 @@ class CartScannerQueue {
       `📝 Creating new abandoned cart for: ${cart.shopifyCheckoutId}`
     );
 
-    // Clean up any existing pending queue entries for this cart first
+    // For new abandoned carts, we can clean up existing queue entries since no attempts have been made yet
     console.log(
       `🧹 Checking for existing queue entries for cart ${cart._id}...`
     );
@@ -351,22 +369,35 @@ class CartScannerQueue {
       `🔄 Updating existing abandoned cart for: ${cart.shopifyCheckoutId}`
     );
 
-    // Clean up any existing unprocessed jobs in call queue
-    // Remove ALL pending entries for this cart (not just this abandoned cart)
+    // Check if we have already made call attempts
+    const hasAttempts = existingAbandonedCart.totalAttempts > 0;
     console.log(
-      `🧹 Checking for existing queue entries for cart ${cart._id}...`
+      `📊 Existing abandoned cart has ${existingAbandonedCart.totalAttempts} attempts. Has attempts: ${hasAttempts}`
     );
-    const deletedQueueEntries = await CallQueue.deleteMany({
-      cartId: cart._id,
-      status: "pending",
-    });
 
-    if (deletedQueueEntries.deletedCount > 0) {
+    if (hasAttempts) {
       console.log(
-        `🧹 Cleaned up ${deletedQueueEntries.deletedCount} pending queue entries for cart ${cart._id}`
+        `⚠️ Cart ${cart._id} already has ${existingAbandonedCart.totalAttempts} call attempts. Preserving existing call queue entries.`
       );
+      // Don't clean up existing queue entries if attempts have been made
+      // Just update the abandoned cart record without touching the call queue
     } else {
-      console.log(`✅ No existing queue entries found for cart ${cart._id}`);
+      // Clean up any existing unprocessed jobs in call queue only if no attempts have been made
+      console.log(
+        `🧹 No attempts made yet. Checking for existing queue entries for cart ${cart._id}...`
+      );
+      const deletedQueueEntries = await CallQueue.deleteMany({
+        cartId: cart._id,
+        status: "pending",
+      });
+
+      if (deletedQueueEntries.deletedCount > 0) {
+        console.log(
+          `🧹 Cleaned up ${deletedQueueEntries.deletedCount} pending queue entries for cart ${cart._id}`
+        );
+      } else {
+        console.log(`✅ No existing queue entries found for cart ${cart._id}`);
+      }
     }
 
     // Update abandoned cart record
@@ -394,15 +425,22 @@ class CartScannerQueue {
     );
     console.log(`📝 Updated cart ${cart._id} - marked as abandoned`);
 
-    // Re-add to call queue
-    await this.addToCallQueue(
-      existingAbandonedCart,
-      agent,
-      shop,
-      cart,
-      nextCallTime,
-      correlationId
-    );
+    // Only re-add to call queue if no attempts have been made yet
+    if (!hasAttempts) {
+      console.log(`📞 No attempts made yet. Adding to call queue.`);
+      await this.addToCallQueue(
+        existingAbandonedCart,
+        agent,
+        shop,
+        cart,
+        nextCallTime,
+        correlationId
+      );
+    } else {
+      console.log(
+        `⚠️ Skipping call queue addition - cart already has ${existingAbandonedCart.totalAttempts} attempts`
+      );
+    }
 
     logDbOperation("update", "AbandonedCart", correlationId, {
       abandonedCartId: existingAbandonedCart._id,

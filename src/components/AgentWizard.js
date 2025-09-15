@@ -1134,6 +1134,7 @@ const AgentWizard = ({ agent, selectedShop, onSave, agentId }) => {
 
       if (response.data.success) {
         toast.success("Agent is now live! 🎉");
+        router.push(`/agent`);
         if (onSave) onSave(); // Refresh the agent data
       } else {
         toast.error(response.data.message || "Failed to make agent live");

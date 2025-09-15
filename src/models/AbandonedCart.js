@@ -66,7 +66,14 @@ const AbandonedCartSchema = new mongoose.Schema(
     // Order & Call Outcome
     orderStage: {
       type: String,
-      enum: ["abandoned", "contacted", "converted", "failed"],
+      enum: [
+        "abandoned",
+        "contacted",
+        "converted",
+        "failed",
+        "recovered",
+        "not-qualified",
+      ],
       default: "abandoned",
       index: true,
     },
@@ -126,6 +133,30 @@ const AbandonedCartSchema = new mongoose.Schema(
     isEligibleForQueue: {
       type: Boolean,
       default: true,
+    },
+
+    // Recovery Tracking
+    recoveryStatus: {
+      type: String,
+      enum: ["recovered", "converted", null],
+      default: null,
+      index: true,
+    },
+
+    recoveryDescription: {
+      type: String,
+      default: null,
+    },
+
+    completedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+
+    lastRecoveryAttempt: {
+      type: Date,
+      default: null,
     },
 
     // Correlation ID for end-to-end tracing
