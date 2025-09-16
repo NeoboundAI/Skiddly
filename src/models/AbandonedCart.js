@@ -1,4 +1,11 @@
 import mongoose from "mongoose";
+import {
+  ORDER_STAGE,
+  ORDER_QUEUE_STATUS,
+  CALL_STATUS,
+  ALL_CALL_OUTCOMES,
+  ALL_FINAL_ACTIONS,
+} from "../constants/callConstants.js";
 
 const AbandonedCartSchema = new mongoose.Schema(
   {
@@ -66,38 +73,35 @@ const AbandonedCartSchema = new mongoose.Schema(
     // Order & Call Outcome
     orderStage: {
       type: String,
-      enum: [
-        "abandoned",
-        "contacted",
-        "converted",
-        "failed",
-        "recovered",
-        "not-qualified",
-      ],
-      default: "abandoned",
+      enum: Object.values(ORDER_STAGE),
+      default: ORDER_STAGE.ABANDONED,
       index: true,
     },
 
     lastCallStatus: {
       type: String,
-      enum: ["picked", "not_picked", "call_in_progress", null],
+      enum: Object.values(CALL_STATUS),
       default: null,
     },
 
     lastCallOutcome: {
       type: String,
+      enum: Object.values(ALL_CALL_OUTCOMES),
       default: null,
     },
+    // Raw call end reason from provider
+    providerEndReason: {
+      type: String,
+    },
 
+    // Processed call ending reason
+    callEndingReason: {
+      type: String,
+    },
     finalAction: {
       type: String,
+      enum: Object.values(ALL_FINAL_ACTIONS),
       default: null,
-    },
-
-    // Call history - stores detailed call log objects
-    callHistory: {
-      type: [mongoose.Schema.Types.Mixed],
-      default: [],
     },
 
     // Queue & Eligibility
@@ -108,15 +112,8 @@ const AbandonedCartSchema = new mongoose.Schema(
 
     orderQueueStatus: {
       type: String,
-      enum: ["Pending", "Processing", "Completed", "Failed"],
-      default: "Pending",
-      index: true,
-    },
-
-    orderQueueState: {
-      type: String,
-      enum: ["New", "Assigned", "Pending"],
-      default: "New",
+      enum: Object.values(ORDER_QUEUE_STATUS),
+      default: ORDER_QUEUE_STATUS.PENDING,
       index: true,
     },
 
@@ -135,28 +132,10 @@ const AbandonedCartSchema = new mongoose.Schema(
       default: true,
     },
 
-    // Recovery Tracking
-    recoveryStatus: {
-      type: String,
-      enum: ["recovered", "converted", null],
-      default: null,
-      index: true,
-    },
-
-    recoveryDescription: {
-      type: String,
-      default: null,
-    },
-
     completedAt: {
       type: Date,
       default: null,
       index: true,
-    },
-
-    lastRecoveryAttempt: {
-      type: Date,
-      default: null,
     },
 
     // Correlation ID for end-to-end tracing

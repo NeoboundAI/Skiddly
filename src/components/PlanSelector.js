@@ -5,22 +5,22 @@ import { motion } from "framer-motion";
 
 const PlanSelector = ({ onPlanSelect, isLoading }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("monthly");
-  const [selectedPlan, setSelectedPlan] = useState("free");
+  const [selectedPlan, setSelectedPlan] = useState("free_trial");
 
   const plans = [
     {
-      id: "free",
-      name: "Free Plan",
+      id: "free_trial",
+      name: "Free Trial",
       price: 0,
-      credits: 10,
+      monthlyCalls: 25,
       features: [
-        { name: "Total Credits (Outbound Calls)", value: "10", included: true },
+        { name: "Monthly Calls", value: "25", included: true },
         { name: "Agent Creation", value: "1", included: true },
-        { name: "Agent Configuration Settings", value: "Yes", included: true },
-        { name: "Twilio Integration", value: "Yes", included: true },
-        { name: "Data Retention", value: "30 days", included: true },
-        { name: "Monthly Active Users", value: "4", included: true },
-        { name: "Campaign Management", value: "Basic", included: true },
+        { name: "Store Connections", value: "1", included: true },
+        { name: "Dedicated Number", value: "No", included: false },
+        { name: "API Access", value: "No", included: false },
+        { name: "Multi-Agent Support", value: "No", included: false },
+        { name: "Trial Duration", value: "7 days", included: true },
       ],
       gradient: "from-purple-100 to-purple-200",
       textColor: "text-gray-800",
@@ -28,59 +28,78 @@ const PlanSelector = ({ onPlanSelect, isLoading }) => {
       enabled: true,
     },
     {
-      id: "infrasonic",
-      name: "Infrasonic",
-      price: 1223,
-      credits: 100,
+      id: "starter",
+      name: "Starter",
+      price: 49,
+      monthlyCalls: 75,
       features: [
-        {
-          name: "Total Credits (Outbound Calls)",
-          value: "100",
-          included: true,
-        },
-        { name: "Agent Creation", value: "5", included: true },
-        {
-          name: "Agent Configuration Settings",
-          value: "Advanced",
-          included: true,
-        },
-        { name: "Twilio Integration", value: "Yes", included: true },
-        { name: "Data Retention", value: "90 days", included: true },
-        { name: "Monthly Active Users", value: "25", included: true },
-        { name: "Campaign Management", value: "Advanced", included: true },
+        { name: "Monthly Calls", value: "75", included: true },
+        { name: "Agent Creation", value: "1", included: true },
+        { name: "Store Connections", value: "1", included: true },
+        { name: "Dedicated Number", value: "Yes", included: true },
+        { name: "API Access", value: "No", included: false },
+        { name: "Multi-Agent Support", value: "No", included: false },
         { name: "Priority Support", value: "Yes", included: true },
       ],
-      gradient: "from-gray-900 via-green-900 to-blue-900",
-      textColor: "text-white",
-      buttonColor: "bg-gray-600 hover:bg-gray-700",
-      enabled: false,
-      comingSoon: true,
+      gradient: "from-blue-100 to-blue-200",
+      textColor: "text-gray-800",
+      buttonColor: "bg-blue-600 hover:bg-blue-700",
+      enabled: true,
     },
     {
-      id: "ultrasonic",
-      name: "Ultrasonic",
-      price: 1894,
-      credits: 500,
+      id: "growth",
+      name: "Growth",
+      price: 149,
+      monthlyCalls: 250,
       features: [
-        {
-          name: "Total Credits (Outbound Calls)",
-          value: "500",
-          included: true,
-        },
-        { name: "Agent Creation", value: "Unlimited", included: true },
-        {
-          name: "Agent Configuration Settings",
-          value: "Premium",
-          included: true,
-        },
-        { name: "Twilio Integration", value: "Yes", included: true },
-        { name: "Data Retention", value: "365 days", included: true },
-        { name: "Monthly Active Users", value: "100", included: true },
-        { name: "Campaign Management", value: "Enterprise", included: true },
-        { name: "Priority Support", value: "24/7", included: true },
-        { name: "Custom Integrations", value: "Yes", included: true },
+        { name: "Monthly Calls", value: "250", included: true },
+        { name: "Agent Creation", value: "3", included: true },
+        { name: "Store Connections", value: "3", included: true },
+        { name: "Dedicated Number", value: "Yes", included: true },
+        { name: "API Access", value: "No", included: false },
+        { name: "Multi-Agent Support", value: "No", included: false },
+        { name: "Priority Support", value: "Yes", included: true },
       ],
-      gradient: "from-purple-900 via-purple-800 to-purple-700",
+      gradient: "from-green-100 to-green-200",
+      textColor: "text-gray-800",
+      buttonColor: "bg-green-600 hover:bg-green-700",
+      enabled: true,
+    },
+    {
+      id: "scale",
+      name: "Scale",
+      price: 399,
+      monthlyCalls: 1000,
+      features: [
+        { name: "Monthly Calls", value: "1,000", included: true },
+        { name: "Agent Creation", value: "10", included: true },
+        { name: "Store Connections", value: "10", included: true },
+        { name: "Dedicated Number", value: "Yes", included: true },
+        { name: "API Access", value: "Yes", included: true },
+        { name: "Multi-Agent Support", value: "Yes", included: true },
+        { name: "Priority Support", value: "Yes", included: true },
+      ],
+      gradient: "from-purple-100 to-purple-200",
+      textColor: "text-gray-800",
+      buttonColor: "bg-purple-600 hover:bg-purple-700",
+      enabled: true,
+    },
+    {
+      id: "enterprise",
+      name: "Enterprise",
+      price: 0,
+      monthlyCalls: -1,
+      features: [
+        { name: "Monthly Calls", value: "Unlimited", included: true },
+        { name: "Agent Creation", value: "Unlimited", included: true },
+        { name: "Store Connections", value: "Unlimited", included: true },
+        { name: "Dedicated Number", value: "Yes", included: true },
+        { name: "API Access", value: "Yes", included: true },
+        { name: "Multi-Agent Support", value: "Yes", included: true },
+        { name: "Custom Pricing", value: "Success-based", included: true },
+        { name: "SLA & Account Manager", value: "Yes", included: true },
+      ],
+      gradient: "from-gray-900 via-purple-900 to-purple-800",
       textColor: "text-white",
       buttonColor: "bg-gray-600 hover:bg-gray-700",
       enabled: false,
@@ -96,18 +115,17 @@ const PlanSelector = ({ onPlanSelect, isLoading }) => {
   };
 
   const getPrice = (basePrice) => {
-    if (basePrice === 0) return "$0";
+    if (basePrice === 0) return "Free";
 
     const discounts = {
       monthly: 0,
-      quarterly: 0.1,
-      annually: 0.2,
+      yearly: 0.2,
     };
 
     const discount = discounts[selectedPeriod];
     const finalPrice = basePrice * (1 - discount);
 
-    return `$${Math.round(finalPrice).toLocaleString()} incl taxes`;
+    return `$${Math.round(finalPrice).toLocaleString()}/month`;
   };
 
   return (
@@ -130,7 +148,7 @@ const PlanSelector = ({ onPlanSelect, isLoading }) => {
         {/* Pricing Period Toggle */}
         <div className="flex justify-center mb-6">
           <div className="bg-white rounded-lg p-1 shadow-md">
-            {["monthly", "quarterly", "annually"].map((period) => (
+            {["monthly", "yearly"].map((period) => (
               <button
                 key={period}
                 onClick={() => setSelectedPeriod(period)}
@@ -141,10 +159,7 @@ const PlanSelector = ({ onPlanSelect, isLoading }) => {
                 }`}
               >
                 {period.charAt(0).toUpperCase() + period.slice(1)}
-                {period === "quarterly" && (
-                  <span className="ml-1 text-xs text-green-600">-10%</span>
-                )}
-                {period === "annually" && (
+                {period === "yearly" && (
                   <span className="ml-1 text-xs text-green-600">-20%</span>
                 )}
               </button>
@@ -153,7 +168,7 @@ const PlanSelector = ({ onPlanSelect, isLoading }) => {
         </div>
 
         {/* Plan Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.id}

@@ -51,22 +51,45 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "credentials",
     },
-    plan: {
-      type: String,
-      enum: ["none", "free", "infrasonic", "ultrasonic"],
-      default: "none",
-    },
-    credits: {
-      type: Number,
-      default: 0,
-    },
-    planDetails: {
-      totalCredits: { type: Number, default: 0 },
-      agentCreationLimit: { type: Number, default: 0 },
-      dataRetentionDays: { type: Number, default: 0 },
-      monthlyActiveUsers: { type: Number, default: 0 },
-      planStartDate: { type: Date },
-      planEndDate: { type: Date },
+    // Subscription Information (denormalized for quick access)
+    subscription: {
+      plan: {
+        type: String,
+        enum: ["free_trial", "starter", "growth", "scale", "enterprise"],
+        default: "free_trial",
+      },
+      status: {
+        type: String,
+        enum: ["active", "trialing", "past_due", "canceled", "paused"],
+        default: "trialing",
+      },
+
+      // Quick access limits
+      limits: {
+        monthlyCalls: { type: Number, default: 25 },
+        monthlySms: { type: Number, default: 0 },
+        maxAgents: { type: Number, default: 1 },
+        maxStores: { type: Number, default: 1 },
+        hasDedicatedNumber: { type: Boolean, default: false },
+        hasApiAccess: { type: Boolean, default: false },
+        hasMultiAgent: { type: Boolean, default: false },
+      },
+
+      // Current month usage
+      usage: {
+        callsThisMonth: { type: Number, default: 0 },
+        smsThisMonth: { type: Number, default: 0 },
+        lastUsageReset: { type: Date, default: Date.now },
+      },
+
+      // Trial info
+      trialEndDate: { type: Date },
+      isTrialActive: { type: Boolean, default: true },
+
+      // Quick billing info
+      nextBillingDate: { type: Date },
+      lastPaymentDate: { type: Date },
+      monthlyPrice: { type: Number, default: 0 },
     },
     lastLogin: {
       type: Date,

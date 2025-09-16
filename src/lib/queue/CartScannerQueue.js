@@ -11,6 +11,7 @@ import {
   formatReadableTime,
   formatCompactTime,
 } from "../../utils/timeUtils.js";
+import { ORDER_QUEUE_STATUS } from "../../constants/callConstants.js";
 
 /**
  * Cart Scanner Queue Manager
@@ -245,9 +246,14 @@ class CartScannerQueue {
 
       if (hasAttempts) {
         console.log(
-          `⚠️ Cart ${cart.shopifyCheckoutId} already has ${existingAbandonedCart.totalAttempts} call attempts. Skipping processing to avoid interference.`
+          `⚠️ Cart ${cart.shopifyCheckoutId} already has ${existingAbandonedCart.totalAttempts} call attempts. Updating cart status to abandoned but skipping call queue processing.`
         );
-        // Don't process if attempts have been made - let the existing call queue handle it
+        // Update cart status to abandoned even if attempts have been made
+        await this.updateCartStatusToAbandoned(
+          cart,
+          existingAbandonedCart,
+          correlationId
+        );
         return;
       } else {
         // Update existing abandoned cart (no attempts made yet)
@@ -276,6 +282,49 @@ class CartScannerQueue {
         correlationId
       );
     }
+  }
+
+  /**
+   * Update cart status to abandoned for existing carts with attempts
+   */
+  async updateCartStatusToAbandoned(
+    cart,
+    existingAbandonedCart,
+    correlationId
+  ) {
+    console.log(
+      `🔄 Updating cart status to abandoned for existing cart with attempts: ${cart.shopifyCheckoutId}`
+    );
+
+    // Update abandoned cart record with latest abandonment time
+    await AbandonedCart.findOneAndUpdate(
+      { _id: existingAbandonedCart._id },
+      {
+        abandonedAt: new Date(), // Update to latest abandonment time
+        correlationId: correlationId,
+      },
+      { new: true }
+    );
+
+    // Update cart status to abandoned
+    await Cart.findOneAndUpdate(
+      { _id: cart._id },
+      {
+        status: "abandoned",
+        lastActivityAt: new Date(),
+      },
+      { new: true }
+    );
+
+    console.log(
+      `📝 Updated cart ${cart._id} - marked as abandoned (existing cart with attempts)`
+    );
+
+    logDbOperation("update", "AbandonedCart", correlationId, {
+      abandonedCartId: existingAbandonedCart._id,
+      cartId: cart._id,
+      action: "existing_abandoned_cart_status_updated",
+    });
   }
 
   /**
@@ -310,6 +359,8 @@ class CartScannerQueue {
       shopifyCheckoutId: cart.shopifyCheckoutId,
       abandonedAt: new Date(),
       nextCallTime: nextCallTime,
+      orderQueueStatus: ORDER_QUEUE_STATUS.IN_QUEUE,
+      isQualified: true, // Default to qualified, will be updated during eligibility check
       correlationId: correlationId,
     });
 
@@ -407,8 +458,9 @@ class CartScannerQueue {
         abandonedAt: new Date(), // Update to latest abandonment time
         nextCallTime: nextCallTime,
         isEligibleForQueue: true, // Re-activate
-        orderQueueStatus: "Pending",
-        orderQueueState: "New",
+        orderQueueStatus: ORDER_QUEUE_STATUS.IN_QUEUE,
+        isQualified: true, // Reset to qualified for re-evaluation
+        reasonOfNotQualified: [], // Clear previous reasons
         correlationId: correlationId,
       },
       { new: true }

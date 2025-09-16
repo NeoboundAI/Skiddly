@@ -1,4 +1,9 @@
 import mongoose from "mongoose";
+import {
+  CALL_STATUS,
+  ALL_CALL_OUTCOMES,
+  ALL_FINAL_ACTIONS,
+} from "../constants/callConstants.js";
 
 const CallSchema = new mongoose.Schema(
   {
@@ -55,14 +60,31 @@ const CallSchema = new mongoose.Schema(
     },
 
     // Call status from VAPI
-    status: {
+    callStatus: {
       type: String,
-      enum: ["queued", "ringing", "in-progress", "forwarding", "ended"],
-      default: "queued",
-      index: true,
+      enum: Object.values(CALL_STATUS),
+      default: CALL_STATUS.QUEUED,
     },
 
-    // Why the call ended
+    callOutcome: {
+      type: String,
+      enum: Object.values(ALL_CALL_OUTCOMES),
+      default: null,
+    },
+
+    finalAction: {
+      type: String,
+      enum: Object.values(ALL_FINAL_ACTIONS),
+      default: null,
+    },
+
+    // Raw call end reason from provider
+    providerEndReason: {
+      type: String,
+      default: "initiated",
+    },
+
+    // Why the call ended (processed/standardized)
     endedReason: {
       type: String,
       enum: [

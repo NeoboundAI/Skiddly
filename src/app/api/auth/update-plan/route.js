@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import connectDB from "../../../../lib/mongodb";
 import User from "../../../../models/User";
+import subscriptionService from "../../../../services/subscriptionService";
 import {
   logApiError,
   logApiSuccess,
@@ -22,7 +23,10 @@ export async function POST(request) {
 
     const { plan } = await request.json();
 
-    if (!plan || !["free", "infrasonic", "ultrasonic"].includes(plan)) {
+    if (
+      !plan ||
+      !["free_trial", "starter", "growth", "scale", "enterprise"].includes(plan)
+    ) {
       logApiError(
         "POST",
         "/api/auth/update-plan",
@@ -31,7 +35,13 @@ export async function POST(request) {
         session.user.id,
         {
           providedPlan: plan,
-          validPlans: ["free", "infrasonic", "ultrasonic"],
+          validPlans: [
+            "free_trial",
+            "starter",
+            "growth",
+            "scale",
+            "enterprise",
+          ],
         }
       );
       return NextResponse.json(
@@ -40,91 +50,36 @@ export async function POST(request) {
       );
     }
 
-    // Define plan details based on selected plan
-    const planConfigs = {
-      free: {
-        credits: 10,
-        totalCredits: 10,
-        agentCreationLimit: 1,
-        dataRetentionDays: 30,
-        monthlyActiveUsers: 4,
-      },
-      infrasonic: {
-        credits: 100,
-        totalCredits: 100,
-        agentCreationLimit: 5,
-        dataRetentionDays: 90,
-        monthlyActiveUsers: 25,
-      },
-      ultrasonic: {
-        credits: 500,
-        totalCredits: 500,
-        agentCreationLimit: -1, // Unlimited
-        dataRetentionDays: 365,
-        monthlyActiveUsers: 100,
-      },
-    };
-
-    const planConfig = planConfigs[plan];
-    const now = new Date();
-    const planEndDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
-
-    // Update user with plan details
-    const updatedUser = await User.findOneAndUpdate(
-      { email: session.user.email },
-      {
-        plan,
-        credits: planConfig.credits,
-        planDetails: {
-          ...planConfig,
-          planStartDate: now,
-          planEndDate,
-        },
-      },
-      { new: true }
+    // Use subscription service to handle plan upgrade
+    const userPlan = await subscriptionService.upgradePlan(
+      session.user.id,
+      plan,
+      "onboarding_selection"
     );
 
-    if (!updatedUser) {
-      logApiError(
-        "POST",
-        "/api/auth/update-plan",
-        404,
-        new Error("User not found"),
-        session.user.id,
-        {
-          email: session.user.email,
-        }
-      );
-      return NextResponse.json({ message: "User not found" }, { status: 404 });
-    }
-
-    logDbOperation("update", "User", session.user.id, {
-      operation: "update_plan",
-      previousPlan: updatedUser.plan,
+    logDbOperation("update", "UserPlan", session.user.id, {
+      operation: "upgrade_plan",
       newPlan: plan,
-      credits: planConfig.credits,
+      planId: userPlan._id,
     });
 
-    logBusinessEvent("plan_updated", session.user.id, {
-      email: updatedUser.email,
-      previousPlan: updatedUser.plan,
+    logBusinessEvent("plan_upgraded", session.user.id, {
+      email: session.user.email,
       newPlan: plan,
-      credits: planConfig.credits,
-      planEndDate: planEndDate,
+      planId: userPlan._id,
     });
 
     logApiSuccess("POST", "/api/auth/update-plan", 200, session.user.id, {
-      email: updatedUser.email,
+      email: session.user.email,
       plan: plan,
-      credits: planConfig.credits,
+      planId: userPlan._id,
     });
 
     return NextResponse.json({
       message: "Plan updated successfully",
       user: {
-        plan: updatedUser.plan,
-        credits: updatedUser.credits,
-        planDetails: updatedUser.planDetails,
+        plan: plan,
+        planId: userPlan._id,
       },
     });
   } catch (error) {

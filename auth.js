@@ -117,8 +117,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             onboardingCompleted: user.onboardingCompleted,
             role: user.role,
             permissions: user.permissions,
-            plan: user.plan,
-            credits: user.credits,
+            subscription: user.subscription,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
           };
@@ -142,8 +141,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         token.onboardingCompleted = user.onboardingCompleted;
         token.role = user.role;
         token.permissions = user.permissions;
-        token.plan = user.plan;
-        token.credits = user.credits;
+        token.subscription = user.subscription;
         token.createdAt = user.createdAt;
         token.updatedAt = user.updatedAt;
         token.shopify = user.shopify;
@@ -161,8 +159,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             token.onboardingCompleted = userData.onboardingCompleted;
             token.role = userData.role;
             token.permissions = userData.permissions;
-            token.plan = userData.plan;
-            token.credits = userData.credits;
+            token.subscription = userData.subscription;
             token.createdAt = userData.createdAt;
             token.updatedAt = userData.updatedAt;
             token.shopify = userData.shopify;
@@ -185,8 +182,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         session.user.onboardingCompleted = token.onboardingCompleted;
         session.user.role = token.role;
         session.user.permissions = token.permissions;
-        session.user.plan = token.plan;
-        session.user.credits = token.credits;
+        session.user.subscription = token.subscription;
         session.user.createdAt = token.createdAt;
         session.user.updatedAt = token.updatedAt;
         session.user.shopify = token.shopify;
@@ -204,7 +200,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           }).lean();
 
           if (!userExists) {
-            // Create new user from Google with default "none" plan
+            // Create new user from Google with default free_trial subscription
             const newUser = await User.create({
               email: profile.email,
               name: profile.name,
@@ -220,13 +216,26 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 viewAnalytics: false,
                 systemSettings: false,
               },
-              plan: "none",
-              credits: 0,
-              planDetails: {
-                totalCredits: 0,
-                agentCreationLimit: 0,
-                dataRetentionDays: 0,
-                monthlyActiveUsers: 0,
+              subscription: {
+                plan: "free_trial",
+                status: "trialing",
+                limits: {
+                  monthlyCalls: 25,
+                  monthlySms: 0,
+                  maxAgents: 1,
+                  maxStores: 1,
+                  hasDedicatedNumber: false,
+                  hasApiAccess: false,
+                  hasMultiAgent: false,
+                },
+                usage: {
+                  callsThisMonth: 0,
+                  smsThisMonth: 0,
+                  lastUsageReset: new Date(),
+                },
+                trialEndDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+                isTrialActive: true,
+                monthlyPrice: 0,
               },
               lastLogin: new Date(),
             });
@@ -243,8 +252,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             user.onboardingCompleted = newUser.onboardingCompleted;
             user.role = newUser.role;
             user.permissions = newUser.permissions;
-            user.plan = newUser.plan;
-            user.credits = newUser.credits;
+            user.subscription = newUser.subscription;
             user.createdAt = newUser.createdAt;
             user.updatedAt = newUser.updatedAt;
           } else {
@@ -269,8 +277,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
             user.onboardingCompleted = userExists.onboardingCompleted;
             user.role = userExists.role;
             user.permissions = userExists.permissions;
-            user.plan = userExists.plan;
-            user.credits = userExists.credits;
+            user.subscription = userExists.subscription;
             user.createdAt = userExists.createdAt;
             user.updatedAt = userExists.updatedAt;
           }

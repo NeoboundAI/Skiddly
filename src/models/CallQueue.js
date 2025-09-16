@@ -45,7 +45,7 @@ const CallQueueSchema = new mongoose.Schema(
     // Queue status
     status: {
       type: String,
-      enum: ["pending", "processing", "completed", "failed", "cancelled"],
+
       default: "pending",
       index: true,
     },

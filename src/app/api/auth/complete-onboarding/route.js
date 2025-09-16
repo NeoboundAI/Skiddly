@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import connectDB from "@/lib/mongodb";
 import User from "@/models/User";
+import subscriptionService from "@/services/subscriptionService";
 import {
   logApiError,
   logApiSuccess,
@@ -25,6 +26,11 @@ export async function POST(req) {
     }
 
     await connectDB();
+
+    // Initialize trial plan for new users
+    const userPlan = await subscriptionService.initializeTrialPlan(
+      session.user.id
+    );
 
     // Update user's onboarding status
     const updatedUser = await User.findByIdAndUpdate(
@@ -53,9 +59,17 @@ export async function POST(req) {
       newStatus: true,
     });
 
+    logDbOperation("create", "UserPlan", session.user.id, {
+      operation: "initialize_trial_plan",
+      planId: userPlan._id,
+      plan: userPlan.plan,
+    });
+
     logBusinessEvent("onboarding_completed", session.user.id, {
       email: updatedUser.email,
       provider: updatedUser.provider,
+      planId: userPlan._id,
+      plan: userPlan.plan,
     });
 
     logApiSuccess(
@@ -65,6 +79,7 @@ export async function POST(req) {
       session.user.id,
       {
         email: updatedUser.email,
+        planId: userPlan._id,
       }
     );
 
@@ -79,11 +94,14 @@ export async function POST(req) {
           emailVerified: updatedUser.emailVerified,
           provider: updatedUser.provider,
           onboardingCompleted: updatedUser.onboardingCompleted,
-          plan: updatedUser.plan,
-          credits: updatedUser.credits,
-          planDetails: updatedUser.planDetails,
+          subscription: updatedUser.subscription,
           createdAt: updatedUser.createdAt,
           updatedAt: updatedUser.updatedAt,
+        },
+        plan: {
+          id: userPlan._id,
+          plan: userPlan.plan,
+          status: userPlan.status,
         },
       },
       { status: 200 }
