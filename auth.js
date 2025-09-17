@@ -220,18 +220,25 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
                 plan: "free_trial",
                 status: "trialing",
                 limits: {
-                  monthlyCalls: 25,
-                  monthlySms: 0,
+                  abandonedCalls: 25,
+                  abandonedSms: 0,
                   maxAgents: 1,
                   maxStores: 1,
                   hasDedicatedNumber: false,
                   hasApiAccess: false,
                   hasMultiAgent: false,
                 },
-                usage: {
-                  callsThisMonth: 0,
-                  smsThisMonth: 0,
-                  lastUsageReset: new Date(),
+                currentBillingPeriod: {
+                  startDate: new Date(),
+                  endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+                  isTrial: true,
+                  maxAbandonedCalls: 25,
+                  maxAbandonedSms: 0,
+                },
+                currentPeriodUsage: {
+                  abandonedCallsUsed: 0,
+                  abandonedSmsUsed: 0,
+                  lastUpdated: new Date(),
                 },
                 trialEndDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
                 isTrialActive: true,

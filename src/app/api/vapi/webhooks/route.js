@@ -8,6 +8,7 @@ import AbandonedCart from "@/models/AbandonedCart";
 import Agent from "@/models/Agent";
 import CallQueue from "@/models/CallQueue";
 import ProcessedCallQueue from "@/models/ProcessedCallQueue";
+import User from "@/models/User";
 import {
   logApiError,
   logApiSuccess,
@@ -394,6 +395,12 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
       callStatus
     );
 
+    // Update billing period usage for abandoned calls
+    await updateBillingPeriodUsage(
+      callRecord.userId,
+      callRecord.abandonedCartId
+    );
+
     // Move completed call queue entry to ProcessedCallQueue
     await moveCallQueueToProcessed(callId, callRecord, webhookData, eventType);
 
@@ -545,11 +552,27 @@ async function updateAbandonedCartWithCallInfo(
           updateData.finalAction = "scheduled_retry";
           updateData.nextCallTime = nextActionTime;
           updateData.orderQueueStatus = ORDER_QUEUE_STATUS.PENDING;
+
+          // Create new CallQueue entry for retry
+          await createRetryCallQueueEntry(
+            abandonedCart,
+            callRecord,
+            nextActionTime,
+            newTotalAttempts
+          );
         } else {
           updateData.nextAttemptShouldBeMade = true;
           updateData.finalAction = "scheduled_retry";
           updateData.nextCallTime = nextActionTime;
           updateData.orderQueueStatus = ORDER_QUEUE_STATUS.PENDING;
+
+          // Create new CallQueue entry for retry
+          await createRetryCallQueueEntry(
+            abandonedCart,
+            callRecord,
+            nextActionTime,
+            newTotalAttempts
+          );
         }
       }
     }
@@ -603,10 +626,16 @@ async function moveCallQueueToProcessed(
       `🔄 Moving call queue entry to ProcessedCallQueue for call: ${callId}`
     );
 
-    // Find the call queue entry by callId
-    const callQueueEntry = await CallQueue.findOne({ callId: callId });
+    // Find the call queue entry by abandonedCartId and correlationId
+    // The CallQueue doesn't have callId, but we can match via abandonedCartId and correlationId
+    const callQueueEntry = await CallQueue.findOne({
+      abandonedCartId: callRecord.abandonedCartId,
+      correlationId: callRecord.correlationId,
+    });
     if (!callQueueEntry) {
-      console.log(`⚠️ Call queue entry not found for callId: ${callId}`);
+      console.log(
+        `⚠️ Call queue entry not found for abandonedCartId: ${callRecord.abandonedCartId}, correlationId: ${callRecord.correlationId}`
+      );
       return;
     }
 
@@ -624,7 +653,7 @@ async function moveCallQueueToProcessed(
       cartId: callQueueEntry.cartId,
       status: "completed", // Always completed when moved from VAPI webhook
       nextAttemptTime: callQueueEntry.nextAttemptTime,
-      callId: callQueueEntry.callId,
+      callId: callId, // Use the VAPI callId from the webhook
       attemptNumber: callQueueEntry.attemptNumber,
       lastProcessedAt: new Date(),
       processingNotes: "Call completed via VAPI webhook",
@@ -678,6 +707,93 @@ async function moveCallQueueToProcessed(
 }
 
 /**
+ * Create a new CallQueue entry for retry attempts
+ */
+async function createRetryCallQueueEntry(
+  abandonedCart,
+  callRecord,
+  nextAttemptTime,
+  attemptNumber
+) {
+  try {
+    console.log(
+      `🔄 Creating retry CallQueue entry for abandonedCart: ${abandonedCart._id}, attempt: ${attemptNumber}`
+    );
+
+    // Find the original CallQueue entry to replicate
+    const originalCallQueueEntry = await CallQueue.findOne({
+      abandonedCartId: callRecord.abandonedCartId,
+      correlationId: callRecord.correlationId,
+    });
+
+    if (!originalCallQueueEntry) {
+      throw new Error(
+        `Original CallQueue entry not found for abandonedCartId: ${callRecord.abandonedCartId}, correlationId: ${callRecord.correlationId}`
+      );
+    }
+
+    // Generate new correlation ID for the retry attempt
+    const retryCorrelationId = `${
+      originalCallQueueEntry.correlationId
+    }_retry_${attemptNumber}_${Date.now()}`;
+
+    // Replicate the original CallQueue entry with new retry details
+    const retryCallQueueEntry = {
+      abandonedCartId: originalCallQueueEntry.abandonedCartId,
+      userId: originalCallQueueEntry.userId,
+      agentId: originalCallQueueEntry.agentId,
+      shopId: originalCallQueueEntry.shopId,
+      cartId: originalCallQueueEntry.cartId,
+      status: "pending",
+      nextAttemptTime: nextAttemptTime,
+      attemptNumber: attemptNumber,
+      lastProcessedAt: null,
+      processingNotes: `Retry attempt ${attemptNumber} - scheduled for ${nextAttemptTime.toISOString()}`,
+      correlationId: retryCorrelationId,
+      addedAt: new Date(),
+    };
+
+    // Create the new call queue entry
+    const newCallQueueEntry = new CallQueue(retryCallQueueEntry);
+    await newCallQueueEntry.save();
+
+    console.log(
+      `✅ Created retry CallQueue entry: ${newCallQueueEntry._id} for attempt ${attemptNumber}`
+    );
+
+    logDbOperation("CREATE", "CallQueue", newCallQueueEntry._id, null, {
+      type: "retry_attempt",
+      originalCallQueueId: originalCallQueueEntry._id,
+      abandonedCartId: abandonedCart._id,
+      attemptNumber: attemptNumber,
+      nextAttemptTime: nextAttemptTime,
+      correlationId: retryCorrelationId,
+      reason: "Customer busy or no answer - scheduling retry",
+    });
+
+    return {
+      success: true,
+      callQueueEntry: newCallQueueEntry,
+    };
+  } catch (error) {
+    console.error(
+      `❌ Error creating retry CallQueue entry for abandonedCart ${abandonedCart._id}:`,
+      error.message
+    );
+    logApiError("VAPI_WEBHOOK", "create_retry_call_queue", 500, error, null, {
+      abandonedCartId: abandonedCart._id,
+      attemptNumber: attemptNumber,
+      nextAttemptTime: nextAttemptTime,
+      errorMessage: error.message,
+    });
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+
+/**
  * Calculate next call time based on agent's retry intervals
  */
 function calculateNextCallTime(
@@ -693,9 +809,12 @@ function calculateNextCallTime(
     return null;
   }
 
-  // Find the retry interval for the current attempt
+  // Find the retry interval for the NEXT attempt
+  // The agent config has intervals like: attempt 1 (30min), attempt 2 (5min), attempt 3 (3hours)
+  // When totalAttempts = 1 (first call failed), we want attempt 2 (5min delay)
+  const nextAttemptNumber = totalAttempts + 1;
   const retryInterval = agentRetryIntervals.find(
-    (interval) => interval.attempt === totalAttempts
+    (interval) => interval.attempt === nextAttemptNumber
   );
 
   if (!retryInterval) {
@@ -724,6 +843,10 @@ function calculateNextCallTime(
     default:
       delayMs = retryInterval.delay * 60 * 1000; // Default to minutes
   }
+
+  console.log(
+    `📅 Next call calculation: attempt ${totalAttempts} -> attempt ${nextAttemptNumber}, delay: ${retryInterval.delay} ${retryInterval.delayUnit} (${delayMs}ms)`
+  );
 
   return new Date(Date.now() + delayMs);
 }
@@ -817,6 +940,58 @@ function categorizeEndedReason(endedReason) {
 
   // Default for unknown reasons
   return "unknown";
+}
+
+/**
+ * Update billing period usage for abandoned calls
+ */
+async function updateBillingPeriodUsage(userId, abandonedCartId) {
+  try {
+    // Check if this is the first call for this abandoned cart
+    const abandonedCart = await AbandonedCart.findById(abandonedCartId);
+    if (abandonedCart && abandonedCart.totalAttempts === 0) {
+      // First call for this unique abandoned cart (totalAttempts is 0 before incrementing)
+
+      // Update User model usage
+      await User.findByIdAndUpdate(userId, {
+        $inc: { "subscription.currentPeriodUsage.abandonedCallsUsed": 1 },
+        "subscription.currentPeriodUsage.lastUpdated": new Date(),
+      });
+
+      console.log(
+        `📊 Updated abandoned call usage for user ${userId} - first call for unique cart ${abandonedCartId}`
+      );
+
+      logDbOperation("update", "User", userId, null, {
+        action: "increment_abandoned_call_usage",
+        abandonedCartId: abandonedCartId,
+        totalAttempts: abandonedCart.totalAttempts,
+        isFirstCall: true,
+      });
+    } else {
+      console.log(
+        `📊 Skipped usage increment for user ${userId} - not first call for cart ${abandonedCartId} (totalAttempts: ${
+          abandonedCart?.totalAttempts || "N/A"
+        })`
+      );
+    }
+  } catch (error) {
+    console.error(
+      `❌ Error updating billing period usage for user ${userId}:`,
+      error.message
+    );
+    logApiError(
+      "VAPI_WEBHOOK",
+      "update_billing_period_usage",
+      500,
+      error,
+      userId,
+      {
+        abandonedCartId,
+        errorMessage: error.message,
+      }
+    );
+  }
 }
 
 /**

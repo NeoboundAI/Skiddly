@@ -31,7 +31,6 @@ const AbandonedCartSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Agent",
       default: null,
-      index: true,
     },
 
     // Shopify checkout ID (for quick lookups)

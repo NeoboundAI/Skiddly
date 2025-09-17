@@ -124,9 +124,23 @@ const CartSchema = new mongoose.Schema(
     // Checkout status and timing
     status: {
       type: String,
-      enum: ["inCheckout", "abandoned", "purchased", "expired"],
+      enum: [
+        "inCheckout",
+        "abandoned",
+        "purchased",
+        "expired",
+        "subscription_inactive",
+        "billing_period_expired",
+        "abandoned_call_limit_reached",
+      ],
       default: "inCheckout",
       index: true,
+    },
+
+    // Reason for status change (when status is not normal)
+    statusReason: {
+      type: String,
+      default: null,
     },
 
     // Important timestamps

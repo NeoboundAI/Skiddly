@@ -8,7 +8,7 @@ import {
   FiVolume2,
   FiMessageSquare,
 } from "react-icons/fi";
-
+import { useSession } from "next-auth/react";
 // Section Separator Component
 const SectionSeparator = () => (
   <div className="border-t-2 border-dashed border-gray-200 my-8"></div>
@@ -17,6 +17,7 @@ const SectionSeparator = () => (
 const AgentPersonaStep = ({ config, onUpdate, onVapiUpdate, errors = {} }) => {
   const [playingVoice, setPlayingVoice] = useState(null);
   const audioRefs = useRef({});
+  const { data: session } = useSession();
 
   // Random name generator by gender
   const femaleNames = [
@@ -135,7 +136,7 @@ const AgentPersonaStep = ({ config, onUpdate, onVapiUpdate, errors = {} }) => {
 
   const handleNameChange = (name) => {
     // Extract email from config if available, or use a default
-    const email = config.userEmail || "user@example.com";
+    const email = session.user.email || "user@example.com";
     const fullName = `${name} (${email})`;
     handleChange("agentName", fullName);
   };

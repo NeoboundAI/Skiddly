@@ -3,7 +3,10 @@ import UserPlan from "../models/UserPlan.js";
 import UsageLog from "../models/UsageLog.js";
 import Agent from "../models/Agent.js";
 import ShopifyShop from "../models/ShopifyShop.js";
+import AbandonedCart from "../models/AbandonedCart.js";
+import Cart from "../models/Cart.js";
 import { PLAN_CONFIGS, SUBSCRIPTION_STATUS } from "../constants/plans.js";
+import { ORDER_QUEUE_STATUS } from "../constants/callConstants.js";
 
 /**
  * Subscription Service
@@ -24,6 +27,19 @@ class SubscriptionService {
         "subscription.plan": "free_trial",
         "subscription.status": "trialing",
         "subscription.limits": PLAN_CONFIGS.free_trial,
+        "subscription.currentBillingPeriod": {
+          startDate: new Date(),
+          endDate: trialEndDate,
+          isTrial: true,
+          maxAbandonedCalls: PLAN_CONFIGS.free_trial.abandonedCalls,
+          maxAbandonedSms: PLAN_CONFIGS.free_trial.abandonedSms,
+        },
+        "subscription.currentPeriodUsage": {
+          abandonedCallsUsed: 0,
+          abandonedSmsUsed: 0,
+          lastUpdated: new Date(),
+        },
+        "subscription.userPlanId": userPlan._id,
         "subscription.trialEndDate": trialEndDate,
         "subscription.isTrialActive": true,
         "subscription.monthlyPrice": 0,
@@ -55,15 +71,31 @@ class SubscriptionService {
 
       // Update User document
       const planConfig = PLAN_CONFIGS[newPlan];
+      const newPeriodStart = new Date();
+      const newPeriodEnd = new Date(
+        newPeriodStart.getTime() + 30 * 24 * 60 * 60 * 1000
+      ); // 30 days
+
       await User.findByIdAndUpdate(userId, {
         "subscription.plan": newPlan,
         "subscription.status": "active",
         "subscription.limits": planConfig,
+        "subscription.currentBillingPeriod": {
+          startDate: newPeriodStart,
+          endDate: newPeriodEnd,
+          isTrial: false,
+          maxAbandonedCalls: planConfig.abandonedCalls,
+          maxAbandonedSms: planConfig.abandonedSms,
+        },
+        "subscription.currentPeriodUsage": {
+          abandonedCallsUsed: 0,
+          abandonedSmsUsed: 0,
+          lastUpdated: new Date(),
+        },
+        "subscription.userPlanId": userPlan._id,
         "subscription.isTrialActive": false,
         "subscription.monthlyPrice": planConfig.monthlyPrice,
-        "subscription.nextBillingDate": new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        ), // 30 days
+        "subscription.nextBillingDate": newPeriodEnd,
       });
 
       return userPlan;
@@ -93,13 +125,23 @@ class SubscriptionService {
         }
       }
 
-      // Check monthly limits
+      // Check billing period limits
+      const now = new Date();
+      const periodStart = user.subscription.currentBillingPeriod.startDate;
+      const periodEnd = user.subscription.currentBillingPeriod.endDate;
+
+      // Check if billing period is still active
+      if (now < periodStart || now > periodEnd) {
+        return { canCall: false, reason: "billing_period_expired" };
+      }
+
+      // Check abandoned call limits
       if (
-        user.subscription.limits.monthlyCalls !== -1 &&
-        user.subscription.usage.callsThisMonth >=
-          user.subscription.limits.monthlyCalls
+        user.subscription.currentBillingPeriod.maxAbandonedCalls !== -1 &&
+        user.subscription.currentPeriodUsage.abandonedCallsUsed >=
+          user.subscription.currentBillingPeriod.maxAbandonedCalls
       ) {
-        return { canCall: false, reason: "monthly_call_limit_reached" };
+        return { canCall: false, reason: "abandoned_call_limit_reached" };
       }
 
       return { canCall: true };
@@ -126,7 +168,8 @@ class SubscriptionService {
 
       // Update User document usage
       await User.findByIdAndUpdate(userId, {
-        $inc: { "subscription.usage.callsThisMonth": 1 },
+        $inc: { "subscription.currentPeriodUsage.abandonedCallsUsed": 1 },
+        "subscription.currentPeriodUsage.lastUpdated": new Date(),
       });
 
       // Log detailed usage
@@ -284,7 +327,8 @@ class SubscriptionService {
           plan: user.subscription.plan,
           status: user.subscription.status,
           limits: user.subscription.limits,
-          usage: user.subscription.usage,
+          currentBillingPeriod: user.subscription.currentBillingPeriod,
+          currentPeriodUsage: user.subscription.currentPeriodUsage,
           trialEndDate: user.subscription.trialEndDate,
           isTrialActive: user.subscription.isTrialActive,
           monthlyPrice: user.subscription.monthlyPrice,
@@ -307,9 +351,9 @@ class SubscriptionService {
         {},
         {
           $set: {
-            "subscription.usage.callsThisMonth": 0,
-            "subscription.usage.smsThisMonth": 0,
-            "subscription.usage.lastUsageReset": new Date(),
+            "subscription.currentPeriodUsage.abandonedCallsUsed": 0,
+            "subscription.currentPeriodUsage.abandonedSmsUsed": 0,
+            "subscription.currentPeriodUsage.lastUpdated": new Date(),
           },
         }
       );
@@ -357,6 +401,51 @@ class SubscriptionService {
   }
 
   /**
+   * Reactivate limit-reached carts after plan upgrade
+   */
+  async reactivateLimitReachedCarts(userId) {
+    try {
+      // Find carts that were marked with limit-related statuses
+      const limitReachedCarts = await Cart.find({
+        userId: userId,
+        status: {
+          $in: [
+            "subscription_inactive",
+            "billing_period_expired",
+            "abandoned_call_limit_reached",
+          ],
+        },
+      });
+
+      console.log(
+        `🔄 Found ${limitReachedCarts.length} limit-reached carts to reactivate for user ${userId}`
+      );
+
+      for (const cart of limitReachedCarts) {
+        // Reset cart status to inCheckout so it can be processed again
+        await Cart.findByIdAndUpdate(
+          cart._id,
+          {
+            status: "inCheckout",
+            statusReason: null,
+            lastActivityAt: new Date(),
+          },
+          { new: true }
+        );
+
+        console.log(
+          `✅ Reactivated cart ${cart._id} - status reset to inCheckout`
+        );
+      }
+
+      return { reactivated: limitReachedCarts.length };
+    } catch (error) {
+      console.error("Error reactivating limit-reached carts:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Get plan comparison data
    */
   getPlanComparison() {
@@ -364,7 +453,8 @@ class SubscriptionService {
       id: key,
       name: config.name,
       monthlyPrice: config.monthlyPrice,
-      monthlyCalls: config.monthlyCalls,
+      abandonedCalls: config.abandonedCalls,
+      abandonedSms: config.abandonedSms,
       maxAgents: config.maxAgents,
       maxStores: config.maxStores,
       hasDedicatedNumber: config.hasDedicatedNumber,

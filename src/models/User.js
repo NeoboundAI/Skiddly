@@ -64,10 +64,10 @@ const userSchema = new mongoose.Schema(
         default: "trialing",
       },
 
-      // Quick access limits
+      // Quick access limits (denormalized from UserPlan)
       limits: {
-        monthlyCalls: { type: Number, default: 25 },
-        monthlySms: { type: Number, default: 0 },
+        abandonedCalls: { type: Number, default: 25 },
+        abandonedSms: { type: Number, default: 0 },
         maxAgents: { type: Number, default: 1 },
         maxStores: { type: Number, default: 1 },
         hasDedicatedNumber: { type: Boolean, default: false },
@@ -75,12 +75,24 @@ const userSchema = new mongoose.Schema(
         hasMultiAgent: { type: Boolean, default: false },
       },
 
-      // Current month usage
-      usage: {
-        callsThisMonth: { type: Number, default: 0 },
-        smsThisMonth: { type: Number, default: 0 },
-        lastUsageReset: { type: Date, default: Date.now },
+      // Current billing period info (denormalized)
+      currentBillingPeriod: {
+        startDate: { type: Date, default: Date.now },
+        endDate: { type: Date },
+        isTrial: { type: Boolean, default: true },
+        maxAbandonedCalls: { type: Number, default: 25 },
+        maxAbandonedSms: { type: Number, default: 0 },
       },
+
+      // Current period usage (denormalized)
+      currentPeriodUsage: {
+        abandonedCallsUsed: { type: Number, default: 0 },
+        abandonedSmsUsed: { type: Number, default: 0 },
+        lastUpdated: { type: Date, default: Date.now },
+      },
+
+      // Reference to UserPlan for detailed tracking
+      userPlanId: { type: mongoose.Schema.Types.ObjectId, ref: "UserPlan" },
 
       // Trial info
       trialEndDate: { type: Date },

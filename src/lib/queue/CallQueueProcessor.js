@@ -171,6 +171,14 @@ class CallQueueProcessor {
       }
 
       const updatedCall = processingResult.call;
+      console.log("updatedCall", updatedCall);
+
+      if (!updatedCall) {
+        console.error(
+          `Call queue entry ${callId} not found or already processed`
+        );
+        return;
+      }
 
       console.log(
         `📞 [${formatCompactTime(

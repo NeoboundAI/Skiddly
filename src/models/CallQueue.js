@@ -7,7 +7,6 @@ const CallQueueSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "AbandonedCart",
       required: true,
-      index: true,
     },
 
     // User reference
@@ -23,7 +22,6 @@ const CallQueueSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Agent",
       required: true,
-      index: true,
     },
 
     // Shop reference
@@ -39,7 +37,6 @@ const CallQueueSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Cart",
       required: true,
-      index: true,
     },
 
     // Queue status

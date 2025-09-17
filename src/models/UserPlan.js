@@ -89,8 +89,8 @@ const userPlanSchema = new mongoose.Schema(
     // Custom Enterprise Features
     enterpriseFeatures: {
       customLimits: {
-        monthlyCalls: { type: Number },
-        monthlySms: { type: Number },
+        abandonedCalls: { type: Number },
+        abandonedSms: { type: Number },
         maxAgents: { type: Number },
         maxStores: { type: Number },
       },
@@ -108,8 +108,8 @@ const userPlanSchema = new mongoose.Schema(
 
     // Plan Limits (denormalized for quick access)
     limits: {
-      monthlyCalls: { type: Number, default: 25 },
-      monthlySms: { type: Number, default: 0 },
+      abandonedCalls: { type: Number, default: 25 },
+      abandonedSms: { type: Number, default: 0 },
       maxAgents: { type: Number, default: 1 },
       maxStores: { type: Number, default: 1 },
       hasDedicatedNumber: { type: Boolean, default: false },
@@ -117,11 +117,13 @@ const userPlanSchema = new mongoose.Schema(
       hasMultiAgent: { type: Boolean, default: false },
     },
 
-    // Usage Tracking
-    usage: {
-      callsThisMonth: { type: Number, default: 0 },
-      smsThisMonth: { type: Number, default: 0 },
-      lastUsageReset: { type: Date, default: Date.now },
+    // Current billing period limits (for quick access)
+    currentPeriodLimits: {
+      maxAbandonedCalls: { type: Number, default: 25 },
+      maxAbandonedSms: { type: Number, default: 0 },
+      periodStartDate: { type: Date, required: true },
+      periodEndDate: { type: Date, required: true },
+      isTrial: { type: Boolean, default: false },
     },
 
     // Metadata
@@ -161,10 +163,9 @@ userPlanSchema.virtual("isActive").get(function () {
 
 // Method to get current plan limits
 userPlanSchema.methods.getCurrentLimits = function () {
-  const planConfig = PLAN_CONFIGS[this.plan];
   return {
-    monthlyCalls: this.limits.monthlyCalls,
-    monthlySms: this.limits.monthlySms,
+    abandonedCalls: this.limits.abandonedCalls,
+    abandonedSms: this.limits.abandonedSms,
     maxAgents: this.limits.maxAgents,
     maxStores: this.limits.maxStores,
     hasDedicatedNumber: this.limits.hasDedicatedNumber,
@@ -183,10 +184,10 @@ userPlanSchema.methods.canPerformAction = function (action, currentUsage = {}) {
         return { canPerform: false, reason: "trial_expired" };
       }
       if (
-        limits.monthlyCalls !== -1 &&
-        currentUsage.calls >= limits.monthlyCalls
+        limits.abandonedCalls !== -1 &&
+        currentUsage.abandonedCalls >= limits.abandonedCalls
       ) {
-        return { canPerform: false, reason: "monthly_call_limit_reached" };
+        return { canPerform: false, reason: "abandoned_call_limit_reached" };
       }
       return { canPerform: true };
 
@@ -231,6 +232,13 @@ userPlanSchema.statics.createTrialPlan = async function (userId) {
     },
     status: SUBSCRIPTION_STATUS.TRIALING,
     limits: PLAN_CONFIGS.free_trial,
+    currentPeriodLimits: {
+      maxAbandonedCalls: PLAN_CONFIGS.free_trial.abandonedCalls,
+      maxAbandonedSms: PLAN_CONFIGS.free_trial.abandonedSms,
+      periodStartDate: trialStartDate,
+      periodEndDate: trialEndDate,
+      isTrial: true,
+    },
   });
 
   return await trialPlan.save();
@@ -264,6 +272,11 @@ userPlanSchema.statics.upgradePlan = async function (
 
   // Create new plan
   const newPlanConfig = PLAN_CONFIGS[newPlan];
+  const newPeriodStart = new Date();
+  const newPeriodEnd = new Date(
+    newPeriodStart.getTime() + 30 * 24 * 60 * 60 * 1000
+  ); // 30 days for monthly plans
+
   const newUserPlan = new this({
     userId,
     plan: newPlan,
@@ -273,9 +286,17 @@ userPlanSchema.statics.upgradePlan = async function (
       successBasedRate: newPlanConfig.successBasedRate || 0,
       currency: newPlanConfig.currency,
     },
-    startDate: new Date(),
+    startDate: newPeriodStart,
+    endDate: newPeriodEnd,
     status: SUBSCRIPTION_STATUS.ACTIVE,
     limits: newPlanConfig,
+    currentPeriodLimits: {
+      maxAbandonedCalls: newPlanConfig.abandonedCalls,
+      maxAbandonedSms: newPlanConfig.abandonedSms,
+      periodStartDate: newPeriodStart,
+      periodEndDate: newPeriodEnd,
+      isTrial: false,
+    },
     history: [],
   });
 

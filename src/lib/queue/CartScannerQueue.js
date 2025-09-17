@@ -12,6 +12,7 @@ import {
   formatCompactTime,
 } from "../../utils/timeUtils.js";
 import { ORDER_QUEUE_STATUS } from "../../constants/callConstants.js";
+import User from "../../models/User.js";
 
 /**
  * Cart Scanner Queue Manager
@@ -101,7 +102,7 @@ class CartScannerQueue {
         status: "inCheckout",
       });
 
-      // Find abandoned carts
+      // Find abandoned carts (including those that were reactivated)
       const abandonedCarts = await Cart.find({
         status: "inCheckout",
         lastActivityAt: { $lt: timeoutAgo },
@@ -174,10 +175,71 @@ class CartScannerQueue {
     const correlationId = generateCorrelationId(
       "abandoned",
       cart.shopifyCheckoutId,
-
       parentCorrelationId
     );
     console.log(`🛒 Processing abandoned cart: ${cart.shopifyCheckoutId}`);
+
+    // Get user and check billing period limits
+    const user = await User.findById(cart.userId).select("subscription");
+
+    if (!user) {
+      console.log(`⚠️ User not found: ${cart.userId}`);
+      return;
+    }
+
+    // Check if subscription is active
+    if (
+      user.subscription.status === "canceled" ||
+      user.subscription.status === "paused"
+    ) {
+      console.log(
+        `⚠️ User ${cart.userId} has inactive subscription: ${user.subscription.status}`
+      );
+      await this.updateCartStatusWithReason(
+        cart,
+        "subscription_inactive",
+        "Subscription is inactive",
+        correlationId
+      );
+      return;
+    }
+
+    // Check if current billing period is still active
+    const now = new Date();
+    const periodStart = user.subscription.currentBillingPeriod.startDate;
+    const periodEnd = user.subscription.currentBillingPeriod.endDate;
+
+    if (now < periodStart || now > periodEnd) {
+      console.log(
+        `⚠️ Billing period expired for user ${cart.userId}. Period: ${periodStart} to ${periodEnd}`
+      );
+      await this.updateCartStatusWithReason(
+        cart,
+        "billing_period_expired",
+        "Billing period has expired",
+        correlationId
+      );
+      return;
+    }
+
+    // Check abandoned call limit for current billing period
+    const currentUsage =
+      user.subscription.currentPeriodUsage.abandonedCallsUsed;
+    const maxAbandonedCalls =
+      user.subscription.currentBillingPeriod.maxAbandonedCalls;
+
+    if (maxAbandonedCalls !== -1 && currentUsage >= maxAbandonedCalls) {
+      console.log(
+        `⚠️ User ${cart.userId} has reached abandoned call limit for current period (${currentUsage}/${maxAbandonedCalls})`
+      );
+      await this.updateCartStatusWithReason(
+        cart,
+        "abandoned_call_limit_reached",
+        `Abandoned call limit reached (${currentUsage}/${maxAbandonedCalls})`,
+        correlationId
+      );
+      return;
+    }
 
     // Find active agent for this user
     const agent = await Agent.findOne({
@@ -185,6 +247,11 @@ class CartScannerQueue {
       type: "abandoned-cart",
       status: "active",
     });
+
+    console.log(
+      `🔍 Agent lookup result for user ${cart.userId}:`,
+      agent ? `Found agent ${agent._id}` : "No agent found"
+    );
 
     if (!agent) {
       console.log(
@@ -203,6 +270,8 @@ class CartScannerQueue {
       );
       return;
     }
+
+    console.log(`✅ Found active agent ${agent._id} for user ${cart.userId}`);
 
     // Get shop details for queue
     const shop = await ShopifyShop.findOne({ userId: cart.userId });
@@ -356,6 +425,7 @@ class CartScannerQueue {
     const abandonedCart = new AbandonedCart({
       cartId: cart._id,
       userId: cart.userId,
+      agentId: agent ? agent._id : null, // Set the agent ID safely
       shopifyCheckoutId: cart.shopifyCheckoutId,
       abandonedAt: new Date(),
       nextCallTime: nextCallTime,
@@ -601,6 +671,33 @@ class CartScannerQueue {
   stop() {
     console.log("🛑 Stopping Cart Scanner Queue...");
     return queueService.stopJob(this.jobId);
+  }
+
+  /**
+   * Update cart status with specific reason (instead of creating AbandonedCart)
+   */
+  async updateCartStatusWithReason(cart, status, reason, correlationId) {
+    // Update cart status with reason
+    await Cart.findOneAndUpdate(
+      { _id: cart._id },
+      {
+        status: status,
+        statusReason: reason,
+        lastActivityAt: new Date(),
+      },
+      { new: true }
+    );
+
+    console.log(
+      `📝 Updated cart ${cart._id} status to: ${status} with reason: ${reason}`
+    );
+
+    logDbOperation("update", "Cart", correlationId, {
+      cartId: cart._id,
+      action: "cart_status_updated_with_reason",
+      status: status,
+      reason: reason,
+    });
   }
 
   /**

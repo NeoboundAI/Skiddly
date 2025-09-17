@@ -3,8 +3,8 @@ export const PLAN_CONFIGS = {
   free_trial: {
     name: "Free Trial",
     duration: 7, // days
-    monthlyCalls: 25,
-    monthlySms: 0,
+    abandonedCalls: 25,
+    abandonedSms: 0,
     maxAgents: 1,
     maxStores: 1,
     hasDedicatedNumber: false,
@@ -17,8 +17,8 @@ export const PLAN_CONFIGS = {
 
   starter: {
     name: "Starter",
-    monthlyCalls: 75,
-    monthlySms: 0,
+    abandonedCalls: 75,
+    abandonedSms: 0,
     maxAgents: 1,
     maxStores: 1,
     hasDedicatedNumber: true,
@@ -31,8 +31,8 @@ export const PLAN_CONFIGS = {
 
   growth: {
     name: "Growth",
-    monthlyCalls: 250,
-    monthlySms: 0,
+    abandonedCalls: 250,
+    abandonedSms: 0,
     maxAgents: 3,
     maxStores: 3,
     hasDedicatedNumber: true,
@@ -45,8 +45,8 @@ export const PLAN_CONFIGS = {
 
   scale: {
     name: "Scale",
-    monthlyCalls: 1000,
-    monthlySms: 0,
+    abandonedCalls: 1000,
+    abandonedSms: 0,
     maxAgents: 10,
     maxStores: 10,
     hasDedicatedNumber: true,
@@ -59,8 +59,8 @@ export const PLAN_CONFIGS = {
 
   enterprise: {
     name: "Enterprise",
-    monthlyCalls: -1, // unlimited
-    monthlySms: -1, // unlimited
+    abandonedCalls: -1, // unlimited
+    abandonedSms: -1, // unlimited
     maxAgents: -1, // unlimited
     maxStores: -1, // unlimited
     hasDedicatedNumber: true,

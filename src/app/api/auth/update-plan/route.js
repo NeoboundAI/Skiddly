@@ -57,6 +57,9 @@ export async function POST(request) {
       "onboarding_selection"
     );
 
+    // Reactivate limit-reached carts after plan upgrade
+    await subscriptionService.reactivateLimitReachedCarts(session.user.id);
+
     logDbOperation("update", "UserPlan", session.user.id, {
       operation: "upgrade_plan",
       newPlan: plan,

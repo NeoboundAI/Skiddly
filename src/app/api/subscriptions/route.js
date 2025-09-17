@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route.js";
+import { auth } from "@/auth";
 import subscriptionService from "@/services/subscriptionService.js";
 import connectDB from "@/lib/mongodb.js";
 
@@ -10,7 +9,7 @@ import connectDB from "@/lib/mongodb.js";
  */
 export async function GET(request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -40,7 +39,7 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

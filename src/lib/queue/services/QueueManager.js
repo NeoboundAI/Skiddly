@@ -40,14 +40,21 @@ class QueueManager {
   /**
    * Mark call as processing
    */
-  async markAsProcessing(callQueueId) {
+  async markAsProcessing(callQueueId, notes = "Call processing") {
     try {
+      const updateData = {
+        status: "processing",
+        lastProcessedAt: new Date(),
+      };
+
+      // Add notes if provided
+      if (notes) {
+        updateData.processingNotes = notes;
+      }
+
       const updatedCall = await CallQueue.findByIdAndUpdate(
         callQueueId,
-        {
-          status: "processing",
-          lastProcessedAt: new Date(),
-        },
+        updateData,
         { new: true }
       );
 
@@ -59,10 +66,7 @@ class QueueManager {
         };
       }
 
-      logDbOperation("UPDATE", "CallQueue", callQueueId, null, {
-        status: "processing",
-        lastProcessedAt: new Date(),
-      });
+      logDbOperation("UPDATE", "CallQueue", callQueueId, null, updateData);
 
       return {
         success: true,
@@ -108,13 +112,6 @@ class QueueManager {
         error: error.message,
       };
     }
-  }
-
-  /**
-   * Mark call as processing
-   */
-  async markAsProcessing(callQueueId, notes = "Call processing") {
-    return await this.updateCallQueueStatus(callQueueId, "processing", notes);
   }
 
   /**

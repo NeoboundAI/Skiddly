@@ -12,7 +12,6 @@ const CallSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
 
     // Reference to user
@@ -28,7 +27,6 @@ const CallSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "AbandonedCart",
       required: true,
-      index: true,
     },
 
     // Reference to agent
@@ -36,7 +34,6 @@ const CallSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Agent",
       required: true,
-      index: true,
     },
 
     // Reference to cart
@@ -44,7 +41,6 @@ const CallSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Cart",
       required: true,
-      index: true,
     },
 
     // VAPI assistant ID

@@ -10,13 +10,14 @@ class ValidationService {
   /**
    * Validate call queue entry data
    */
-  async validateCallQueueEntry(callQueueId) {
+  async validateCallQueueEntry(callQueueEntry) {
+    console.log("callQueueEntry", callQueueEntry);
     try {
       // Fetch related data
       const [agent, cart, abandonedCart] = await Promise.all([
-        Agent.findById(callQueueId.agentId),
-        Cart.findById(callQueueId.cartId),
-        AbandonedCart.findById(callQueueId.abandonedCartId),
+        Agent.findById(callQueueEntry.agentId),
+        Cart.findById(callQueueEntry.cartId),
+        AbandonedCart.findById(callQueueEntry.abandonedCartId),
       ]);
 
       const validation = {

@@ -6,47 +6,39 @@ const processedCallQueueSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "AbandonedCart",
       required: true,
-      index: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     agentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Agent",
       required: true,
-      index: true,
     },
     shopId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ShopifyShop",
       required: true,
-      index: true,
     },
     cartId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Cart",
       required: true,
-      index: true,
     },
     status: {
       type: String,
       enum: ["completed", "failed"],
       required: true,
-      index: true,
     },
     nextAttemptTime: {
       type: Date,
       required: true,
-      index: true,
     },
     callId: {
       type: String,
       required: true,
-      index: true,
     },
     attemptNumber: {
       type: Number,
@@ -64,7 +56,6 @@ const processedCallQueueSchema = new mongoose.Schema(
     correlationId: {
       type: String,
       required: true,
-      index: true,
     },
     addedAt: {
       type: Date,

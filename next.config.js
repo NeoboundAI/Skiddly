@@ -3,8 +3,6 @@ const nextConfig = {
   // Enable source maps for client-side code in production
   productionBrowserSourceMaps: true,
 
-
-  
   // Custom webpack configuration for enhanced debugging
   webpack: (config, { dev, isServer, buildId }) => {
     // Enable source maps for both development and production
@@ -33,7 +31,6 @@ const nextConfig = {
 
     return config;
   },
-
 };
 
 export default nextConfig;
