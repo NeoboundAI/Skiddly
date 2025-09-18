@@ -5,7 +5,6 @@ import Cart from "@/models/Cart";
 import AbandonedCart from "@/models/AbandonedCart";
 import ShopifyShop from "@/models/ShopifyShop";
 import { generateWebhookCorrelationId } from "@/utils/correlationUtils";
-import { getTimezoneFromPhoneNumber } from "@/utils/timezoneUtils";
 
 export async function POST(request) {
   try {
@@ -356,9 +355,6 @@ function buildCartData(checkout, shop, correlationId, shopDomain = null) {
     // Customer information
     customerEmail: checkout.email,
     customerPhone: checkout.phone,
-    customerTimezone: checkout.phone
-      ? getTimezoneFromPhoneNumber(checkout.phone)
-      : null,
     customerFirstName: checkout.customer?.first_name,
     customerLastName: checkout.customer?.last_name,
     customerId: checkout.customer?.id?.toString(),

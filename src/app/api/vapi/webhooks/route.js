@@ -18,8 +18,6 @@ import {
 } from "@/lib/apiLogger";
 import { CALL_STATUS, ORDER_QUEUE_STATUS } from "@/constants/callConstants.js";
 import callAnalysisService from "@/services/callAnalysisService";
-import { calculateRescheduleTime } from "@/services/rescheduleService";
-import { getTimezoneFromPhoneNumber } from "@/utils/timezoneUtils";
 
 /**
  * Append webhook data to single log file for analysis
@@ -267,31 +265,22 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
 
     console.log(`✅ Updated Call record: ${updatedCall._id}`);
 
-    // Update AbandonedCart with call information (skip for status-update events)
-    if (eventType !== "status-update") {
-      await updateAbandonedCartWithCallInfo(
-        callRecord.abandonedCartId,
-        callId,
-        callAnalysis,
-        eventType
-      );
-    }
+    // Update AbandonedCart with call information
+    await updateAbandonedCartWithCallInfo(
+      callRecord.abandonedCartId,
+      callId,
+      callAnalysis,
+      eventType
+    );
 
-    // Update billing period usage for abandoned calls (skip for status-update events)
-    if (eventType !== "status-update") {
-      await updateBillingPeriodUsage(
-        callRecord.userId,
-        callRecord.abandonedCartId
-      );
+    // Update billing period usage for abandoned calls
+    await updateBillingPeriodUsage(
+      callRecord.userId,
+      callRecord.abandonedCartId
+    );
 
-      // Move completed call queue entry to ProcessedCallQueue
-      await moveCallQueueToProcessed(
-        callId,
-        callRecord,
-        webhookData,
-        eventType
-      );
-    }
+    // Move completed call queue entry to ProcessedCallQueue
+    await moveCallQueueToProcessed(callId, callRecord, webhookData, eventType);
 
     logDbOperation("UPDATE", "Call", callRecord._id, null, {
       webhookEvent: eventType,
@@ -339,16 +328,6 @@ async function processCallAnalysis(
         callUpdateData.picked = true;
       }
     }
-
-    // Also update AbandonedCart for status updates
-    if (callRecord.abandonedCartId) {
-      await updateAbandonedCartStatus(
-        callRecord.abandonedCartId,
-        callUpdateData.callStatus
-      );
-    }
-
-    return { callUpdateData };
   } else if (eventType === "end-of-call-report") {
     // End of call - perform full analysis
     return await processEndOfCallReport(callData, callRecord, callUpdateData);
@@ -585,57 +564,6 @@ async function calculateRetryTime(callRecord, endedReason) {
 }
 
 /**
- * Update AbandonedCart status for in-progress calls
- */
-async function updateAbandonedCartStatus(abandonedCartId, callStatus) {
-  try {
-    console.log(
-      `🛒 Updating AbandonedCart ${abandonedCartId} status to: ${callStatus}`
-    );
-
-    const updateData = {
-      lastCallStatus: callStatus,
-      updatedAt: new Date(),
-    };
-
-    const updatedAbandonedCart = await AbandonedCart.findByIdAndUpdate(
-      abandonedCartId,
-      updateData,
-      { new: true }
-    );
-
-    if (updatedAbandonedCart) {
-      console.log(
-        `✅ Updated AbandonedCart status: ${updatedAbandonedCart._id}`
-      );
-
-      logDbOperation("UPDATE", "AbandonedCart", abandonedCartId, null, {
-        action: "status_update",
-        callStatus: callStatus,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  } catch (error) {
-    console.error(
-      `❌ Error updating AbandonedCart status ${abandonedCartId}:`,
-      error.message
-    );
-    logApiError(
-      "VAPI_WEBHOOK",
-      "update_abandoned_cart_status",
-      500,
-      error,
-      null,
-      {
-        abandonedCartId,
-        callStatus,
-        errorMessage: error.message,
-      }
-    );
-  }
-}
-
-/**
  * Update AbandonedCart with basic call information (no transcript/summary)
  */
 async function updateAbandonedCartWithCallInfo(
@@ -693,80 +621,22 @@ async function updateAbandonedCartWithCallInfo(
 
     if (shouldRetry) {
       updateData.nextAttemptShouldBeMade = true;
-
-      // Check if customer requested specific reschedule time
-      if (
-        callAnalysis.callUpdateData.callOutcome === "reschedule_request" &&
-        callAnalysis.callUpdateData.callAnalysis?.structuredData
-          ?.rescheduleRequested
-      ) {
-        // Get customer phone number from call record
-        const callRecord = await Call.findOne({ callId: callId });
-        const customerPhone = callRecord?.customerNumber;
-
-        if (customerPhone) {
-          // Calculate reschedule time based on customer request
-          const rescheduleResult = await calculateRescheduleTime(
-            callAnalysis.callUpdateData.callAnalysis,
-            customerPhone,
-            await getAgentConfig(callRecord)
-          );
-
-          if (rescheduleResult.success) {
-            updateData.nextCallTime = rescheduleResult.nextCallTime;
-            console.log(
-              `📅 Customer requested reschedule: ${rescheduleResult.customerRequest} -> ${rescheduleResult.nextCallTime}`
-            );
-
-            // Create new CallQueue entry for customer-requested reschedule
-            await createRescheduleCallQueueEntry(
-              abandonedCart,
-              callRecord,
-              rescheduleResult.nextCallTime,
-              retryAttemptNumber,
-              rescheduleResult.customerRequest
-            );
-          } else {
-            // Fallback to agent's retry intervals
-            updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
-            console.log(
-              `⚠️ Reschedule request failed: ${rescheduleResult.reason}, using agent retry intervals`
-            );
-
-            // Create regular retry CallQueue entry
-            await createRetryCallQueueEntry(
-              abandonedCart,
-              callRecord,
-              callAnalysis.callUpdateData.nextCallTime,
-              retryAttemptNumber
-            );
-          }
-        } else {
-          // No phone number, use agent's retry intervals
-          updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
-
-          // Create regular retry CallQueue entry
-          await createRetryCallQueueEntry(
-            abandonedCart,
-            callRecord,
-            callAnalysis.callUpdateData.nextCallTime,
-            retryAttemptNumber
-          );
-        }
-      } else {
-        // Use agent's retry intervals for other cases
-        updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
-
-        // Create regular retry CallQueue entry
-        await createRetryCallQueueEntry(
-          abandonedCart,
-          callRecord,
-          callAnalysis.callUpdateData.nextCallTime,
-          retryAttemptNumber
-        );
-      }
-
+      updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
       updateData.orderQueueStatus = ORDER_QUEUE_STATUS.PENDING;
+
+      // Create new CallQueue entry for retry
+      // For technical errors, use current attempt number (not incremented)
+      // For regular calls, use newTotalAttempts (incremented)
+      const retryAttemptNumber = isTechnicalError
+        ? abandonedCart.totalAttempts
+        : newTotalAttempts;
+
+      await createRetryCallQueueEntry(
+        abandonedCart,
+        callRecord,
+        callAnalysis.callUpdateData.nextCallTime,
+        retryAttemptNumber
+      );
     } else {
       updateData.nextAttemptShouldBeMade = false;
       updateData.nextCallTime = null;
@@ -945,106 +815,6 @@ async function moveCallQueueToProcessed(
       eventType,
       errorMessage: error.message,
     });
-  }
-}
-
-/**
- * Create a new CallQueue entry for customer-requested reschedule
- */
-async function createRescheduleCallQueueEntry(
-  abandonedCart,
-  callRecord,
-  nextAttemptTime,
-  attemptNumber,
-  customerRequest
-) {
-  try {
-    console.log(
-      `🔄 Creating reschedule CallQueue entry for abandonedCart: ${abandonedCart._id}, attempt: ${attemptNumber}, customer request: ${customerRequest}`
-    );
-
-    // Find the original CallQueue entry to replicate
-    const originalCallQueueEntry = await CallQueue.findOne({
-      abandonedCartId: callRecord.abandonedCartId,
-      correlationId: callRecord.correlationId,
-    });
-
-    if (!originalCallQueueEntry) {
-      throw new Error(
-        `Original CallQueue entry not found for abandonedCartId: ${callRecord.abandonedCartId}, correlationId: ${callRecord.correlationId}`
-      );
-    }
-
-    // Generate new correlation ID for the reschedule attempt
-    const rescheduleCorrelationId = `${
-      originalCallQueueEntry.correlationId
-    }_reschedule_${attemptNumber}_${Date.now()}`;
-
-    // Create reschedule CallQueue entry
-    const rescheduleCallQueueEntry = {
-      abandonedCartId: originalCallQueueEntry.abandonedCartId,
-      userId: originalCallQueueEntry.userId,
-      agentId: originalCallQueueEntry.agentId,
-      shopId: originalCallQueueEntry.shopId,
-      cartId: originalCallQueueEntry.cartId,
-      status: "pending",
-      nextAttemptTime: nextAttemptTime,
-      attemptNumber: attemptNumber + 1,
-      lastProcessedAt: null,
-      processingNotes: `Customer-requested reschedule: "${customerRequest}" - scheduled for ${formatReadableTime(
-        nextAttemptTime
-      )}`,
-      correlationId: rescheduleCorrelationId,
-      action: "customer_reschedule",
-      addedAt: new Date(),
-    };
-
-    // Create the new call queue entry
-    const newCallQueueEntry = new CallQueue(rescheduleCallQueueEntry);
-    await newCallQueueEntry.save();
-
-    console.log(
-      `✅ Created reschedule CallQueue entry: ${newCallQueueEntry._id} for customer request: ${customerRequest}`
-    );
-
-    logDbOperation("CREATE", "CallQueue", newCallQueueEntry._id, null, {
-      type: "customer_reschedule",
-      originalCallQueueId: originalCallQueueEntry._id,
-      abandonedCartId: abandonedCart._id,
-      attemptNumber: attemptNumber + 1,
-      nextAttemptTime: nextAttemptTime,
-      correlationId: rescheduleCorrelationId,
-      customerRequest: customerRequest,
-      reason: "Customer requested specific reschedule time",
-    });
-
-    return {
-      success: true,
-      callQueueEntry: newCallQueueEntry,
-    };
-  } catch (error) {
-    console.error(
-      `❌ Error creating reschedule CallQueue entry for abandonedCart ${abandonedCart._id}:`,
-      error.message
-    );
-    logApiError(
-      "VAPI_WEBHOOK",
-      "create_reschedule_call_queue",
-      500,
-      error,
-      null,
-      {
-        abandonedCartId: abandonedCart._id,
-        attemptNumber: attemptNumber + 1,
-        nextAttemptTime: nextAttemptTime,
-        customerRequest: customerRequest,
-        errorMessage: error.message,
-      }
-    );
-    return {
-      success: false,
-      error: error.message,
-    };
   }
 }
 

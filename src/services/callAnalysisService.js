@@ -145,27 +145,6 @@ For call outcomes when customer was reached (picked), use these options:
 - technical_issues: Customer had technical issues with website
 - wrong_person: Reached wrong person
 
-CRITICAL: Pay special attention to RESCHEDULE REQUESTS. Look for these patterns:
-- Specific times: "call me at 3 PM", "call me tomorrow at 2:30", "call me at 4 o'clock"
-- Relative times: "call me in 2 hours", "call me later", "call me tomorrow morning"
-- Timezone hints: "call me at 3 PM EST", "call me at 2 PM my time", "call me at 5 PM IST"
-- Date references: "tomorrow", "next week", "Monday", "this afternoon", "this evening"
-- Time periods: "morning", "afternoon", "evening", "night"
-
-For reschedule requests, extract:
-- rescheduleRequested: true if customer wants to reschedule
-- rescheduleTime: Extract the specific time (e.g., "3:00 PM", "14:30", "2 o'clock")
-- rescheduleDate: Extract the date (e.g., "tomorrow", "2024-01-15", "Monday")
-- rescheduleTimezone: Extract timezone hints (e.g., "EST", "IST", "my time")
-- relativeTime: Extract relative expressions (e.g., "in 2 hours", "tomorrow morning")
-
-Examples of reschedule extraction:
-- "Call me at 3 PM tomorrow" → rescheduleTime: "3:00 PM", rescheduleDate: "tomorrow"
-- "Call me in 2 hours" → relativeTime: "in 2 hours"
-- "Call me at 2 PM EST" → rescheduleTime: "2:00 PM", rescheduleTimezone: "EST"
-- "Call me tomorrow morning" → rescheduleDate: "tomorrow", relativeTime: "tomorrow morning"
-- "Call me later today" → relativeTime: "later today"
-
 IMPORTANT: Respond with ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or additional text. Just the raw JSON.
 
 {
@@ -175,11 +154,8 @@ IMPORTANT: Respond with ONLY a valid JSON object. Do not include any markdown fo
     "customerName": "customer name if mentioned",
     "customerPhone": "phone number if mentioned",
     "discountRequested": "discount amount or percentage if mentioned",
-    "rescheduleRequested": true/false,
-    "rescheduleTime": "extract specific time (e.g., '3:00 PM', '14:30', '2 o'clock')",
-    "rescheduleDate": "extract date (e.g., 'tomorrow', 'Monday', '2024-01-15')",
-    "rescheduleTimezone": "extract timezone hint (e.g., 'EST', 'IST', 'my time')",
-    "relativeTime": "extract relative expression (e.g., 'in 2 hours', 'tomorrow morning')",
+    "rescheduleTime": "preferred time if customer wants to reschedule",
+    "rescheduleDate": "preferred date if customer wants to reschedule",
     "purchaseCompleted": true/false,
     "technicalIssues": "description of technical issues if any",
     "additionalNotes": "any other important details"
