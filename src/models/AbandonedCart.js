@@ -103,6 +103,42 @@ const AbandonedCartSchema = new mongoose.Schema(
       default: null,
     },
 
+    // AI Analysis of the call
+    callAnalysis: {
+      summary: {
+        type: String,
+        default: null,
+      },
+      transcript: {
+        type: String,
+        default: null,
+      },
+      callOutcome: {
+        type: String,
+        enum: Object.values(ALL_CALL_OUTCOMES),
+        default: null,
+      },
+      structuredData: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
+      confidence: {
+        type: Number,
+        min: 0,
+        max: 1,
+        default: null,
+      },
+      analysisMethod: {
+        type: String,
+        enum: ["ai_analysis", "fallback_analysis"],
+        default: null,
+      },
+      timestamp: {
+        type: Date,
+        default: null,
+      },
+    },
+
     // Queue & Eligibility
     nextAttemptShouldBeMade: {
       type: Boolean,

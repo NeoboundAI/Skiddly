@@ -1,6 +1,4 @@
-import Agent from "../../../models/Agent.js";
-import Cart from "../../../models/Cart.js";
-import AbandonedCart from "../../../models/AbandonedCart.js";
+// Note: No longer importing models since we use populated data from callQueueEntry
 
 /**
  * Validation Service
@@ -10,16 +8,13 @@ class ValidationService {
   /**
    * Validate call queue entry data
    */
-  async validateCallQueueEntry(callQueueEntry) {
-    console.log("callQueueEntry", callQueueEntry);
+  async validateCallQueueEntry(agent, cart, abandonedCart) {
+    console.log("Validating data:", {
+      agent: agent?._id,
+      cart: cart?._id,
+      abandonedCart: abandonedCart?._id,
+    });
     try {
-      // Fetch related data
-      const [agent, cart, abandonedCart] = await Promise.all([
-        Agent.findById(callQueueEntry.agentId),
-        Cart.findById(callQueueEntry.cartId),
-        AbandonedCart.findById(callQueueEntry.abandonedCartId),
-      ]);
-
       const validation = {
         isValid: true,
         errors: [],

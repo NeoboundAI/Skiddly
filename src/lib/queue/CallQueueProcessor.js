@@ -4,6 +4,11 @@ import { logBusinessEvent, logApiError } from "../apiLogger.js";
 import { generateCorrelationId } from "../../utils/correlationUtils.js";
 import { formatCompactTime } from "../../utils/timeUtils.js";
 
+// Import models
+import Agent from "../../models/Agent.js";
+import Cart from "../../models/Cart.js";
+import AbandonedCart from "../../models/AbandonedCart.js";
+
 // Import services
 import eligibilityChecker from "./services/EligibilityChecker.js";
 import callService from "./services/CallService.js";
@@ -19,7 +24,7 @@ class CallQueueProcessor {
     this.jobId = "process-call-queue";
     this.config = {
       // How often to check for pending calls (every 30 seconds)
-      PROCESSOR_INTERVAL: "*/30 * * * * *",
+      PROCESSOR_INTERVAL: "*/10 * * * * *",
       // Number of concurrent calls to process in each cycle
       CONCURRENT_CALLS_LIMIT: 5,
     };
@@ -187,9 +192,18 @@ class CallQueueProcessor {
       );
 
       try {
+        // Fetch all required data once
+        const [agent, cart, abandonedCart] = await Promise.all([
+          Agent.findById(updatedCall.agentId),
+          Cart.findById(updatedCall.cartId),
+          AbandonedCart.findById(updatedCall.abandonedCartId),
+        ]);
+
         // Validate call queue entry data
         const validation = await validationService.validateCallQueueEntry(
-          updatedCall
+          agent,
+          cart,
+          abandonedCart
         );
 
         if (!validation.isValid) {
@@ -203,8 +217,6 @@ class CallQueueProcessor {
           );
           return;
         }
-
-        const { agent, cart, abandonedCart } = validation.data;
 
         // Check eligibility
         console.log(
@@ -389,19 +401,26 @@ class CallQueueProcessor {
 
       const callEntry = callEntryResult.call;
 
+      // Fetch all required data once
+      const [agent, cart, abandonedCart] = await Promise.all([
+        Agent.findById(callEntry.agentId),
+        Cart.findById(callEntry.cartId),
+        AbandonedCart.findById(callEntry.abandonedCartId),
+      ]);
+
       const eligibilityCheck = await eligibilityChecker.checkCallEligibility(
-        callEntry.agentId,
-        callEntry.cartId,
-        callEntry.abandonedCartId
+        agent,
+        cart,
+        abandonedCart
       );
 
       return {
         callQueueId,
         isEligible: eligibilityCheck.isEligible,
         reasons: eligibilityCheck.reasons,
-        agentId: callEntry.agentId._id,
-        cartId: callEntry.cartId._id,
-        abandonedCartId: callEntry.abandonedCartId._id,
+        agentId: agent._id,
+        cartId: cart._id,
+        abandonedCartId: abandonedCart._id,
       };
     } catch (error) {
       console.error("Error checking eligibility:", error);

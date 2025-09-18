@@ -165,24 +165,37 @@ const CallSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Analysis of the call
-    analysis: {
-      callResult: {
+    // AI Analysis of the call
+    callAnalysis: {
+      summary: {
         type: String,
-        enum: ["successful", "no-answer", "busy", "failed", "voicemail"],
         default: null,
       },
-      customerInterest: {
+      transcript: {
         type: String,
-        enum: ["high", "medium", "low", "none"],
         default: null,
       },
-      nextAction: {
+      callOutcome: {
         type: String,
-        enum: ["completed", "reschedule", "no-follow-up"],
+        enum: Object.values(ALL_CALL_OUTCOMES),
         default: null,
       },
-      rescheduleTime: {
+      structuredData: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
+      confidence: {
+        type: Number,
+        min: 0,
+        max: 1,
+        default: null,
+      },
+      analysisMethod: {
+        type: String,
+        enum: ["ai_analysis", "fallback_analysis"],
+        default: null,
+      },
+      timestamp: {
         type: Date,
         default: null,
       },

@@ -9,6 +9,7 @@ import Agent from "@/models/Agent";
 import CallQueue from "@/models/CallQueue";
 import ProcessedCallQueue from "@/models/ProcessedCallQueue";
 import User from "@/models/User";
+import { formatReadableTime } from "@/utils/timeUtils";
 import {
   logApiError,
   logApiSuccess,
@@ -16,6 +17,7 @@ import {
   logDbOperation,
 } from "@/lib/apiLogger";
 import { CALL_STATUS, ORDER_QUEUE_STATUS } from "@/constants/callConstants.js";
+import callAnalysisService from "@/services/callAnalysisService";
 
 /**
  * Append webhook data to single log file for analysis
@@ -245,154 +247,30 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
 
     console.log(`📞 Found call record: ${callRecord._id}`);
 
-    // Update Call record with webhook data
-    const callUpdateData = {
-      updatedAt: new Date(),
-    };
+    // Process the webhook and get call analysis
+    const callAnalysis = await processCallAnalysis(
+      webhookData,
+      callId,
+      callStatus,
+      eventType,
+      callRecord
+    );
 
-    // Update status if provided
-    if (callStatus) {
-      callUpdateData.callStatus = callStatus;
-
-      // Set picked status when call goes to in-progress
-      if (callStatus === "in-progress") {
-        callUpdateData.picked = true;
-      }
-    }
-
-    // Update specific fields based on webhook type
-    if (eventType === "end-of-call-report") {
-      // Handle nested webhook data structure
-      const callData = webhookData.message || webhookData;
-
-      if (callData.endedReason) {
-        // Store raw provider reason
-        callUpdateData.providerEndReason = callData.endedReason;
-        // Store processed reason (same for now, but can be standardized later)
-        callUpdateData.endedReason = callData.endedReason;
-
-        // Categorize and handle different ended reasons
-        const reasonCategory = categorizeEndedReason(callData.endedReason);
-
-        // Get agent retry intervals for proper scheduling
-        let agentRetryIntervals = [];
-        if (callRecord.agentId) {
-          const agent = await Agent.findById(callRecord.agentId);
-          if (agent && agent.callLogic && agent.callLogic.callSchedule) {
-            if (agent.callLogic.callSchedule.retryIntervals) {
-              agentRetryIntervals = agent.callLogic.callSchedule.retryIntervals;
-            }
-          }
-        }
-
-        // Get current attempt count from AbandonedCart
-        const abandonedCart = await AbandonedCart.findById(
-          callRecord.abandonedCartId
-        );
-        const currentAttempts = abandonedCart
-          ? (abandonedCart.totalAttempts || 0) + 1
-          : 1;
-
-        // Set picked status and next call time based on reason category
-        if (reasonCategory === "customer_answered") {
-          callUpdateData.picked = true;
-          callUpdateData.nextCallTime = null; // No retry needed
-        } else if (reasonCategory === "assistant_ended") {
-          callUpdateData.picked = true; // Customer was engaged, assistant ended
-          callUpdateData.nextCallTime = null; // No retry needed
-        } else {
-          // For all other cases, use agent retry intervals
-          callUpdateData.picked = false;
-          callUpdateData.nextCallTime = calculateNextCallTime(
-            currentAttempts,
-            agentRetryIntervals,
-            callData.endedReason
-          );
-        }
-
-        // Log detailed reason information
-        console.log(
-          `📞 Call ended: ${callData.endedReason} | Category: ${reasonCategory} | Attempt: ${currentAttempts} | Picked: ${callUpdateData.picked} | Next call: ${callUpdateData.nextCallTime}`
-        );
-      }
-      if (callData.cost !== undefined) {
-        callUpdateData.cost = callData.cost;
-      }
-      if (callData.duration !== undefined) {
-        callUpdateData.duration = callData.duration;
-      }
-      if (callData.transcript) {
-        callUpdateData.transcript = callData.transcript;
-      }
-      if (callData.summary) {
-        callUpdateData.summary = callData.summary;
-      }
-      if (callData.recordingUrl) {
-        callUpdateData.recordingUrl = callData.recordingUrl;
-      }
-
-      // Set call outcome and final action based on ended reason
-      if (callData.endedReason) {
-        const reasonCategory = categorizeEndedReason(callData.endedReason);
-
-        // Set call outcome and status based on reason category
-        if (reasonCategory === "customer_answered") {
-          callUpdateData.callOutcome = "not_interested"; // Default for customer ending call
-          callUpdateData.callStatus = CALL_STATUS.PICKED;
-          callUpdateData.picked = true;
-        } else if (reasonCategory === "customer_busy") {
-          callUpdateData.callOutcome = "customer_busy";
-          callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
-          callUpdateData.picked = false;
-        } else if (reasonCategory === "customer_no_answer") {
-          callUpdateData.callOutcome = "no_answer";
-          callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
-          callUpdateData.picked = false;
-        } else if (reasonCategory === "voicemail") {
-          callUpdateData.callOutcome = "voicemail";
-          callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
-          callUpdateData.picked = false;
-        } else if (reasonCategory === "technical_error") {
-          callUpdateData.callOutcome = "technical_issues";
-          callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
-          callUpdateData.picked = false;
-        } else {
-          callUpdateData.callOutcome = "call_disconnected"; // Default fallback
-          callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
-          callUpdateData.picked = false;
-        }
-
-        // Set final action based on outcome
-        if (callUpdateData.callOutcome === "not_interested") {
-          callUpdateData.finalAction = "no_action_required";
-        } else if (
-          callUpdateData.callOutcome === "customer_busy" ||
-          callUpdateData.callOutcome === "no_answer" ||
-          callUpdateData.callOutcome === "voicemail"
-        ) {
-          callUpdateData.finalAction = "scheduled_retry";
-        } else {
-          callUpdateData.finalAction = "scheduled_retry"; // Default for retryable cases
-        }
-      }
-    }
-
-    // Update the Call record
+    // Update the Call record with analysis results
     const updatedCall = await Call.findByIdAndUpdate(
       callRecord._id,
-      callUpdateData,
+      callAnalysis.callUpdateData,
       { new: true }
     );
 
     console.log(`✅ Updated Call record: ${updatedCall._id}`);
 
-    // Update AbandonedCart with basic call information
+    // Update AbandonedCart with call information
     await updateAbandonedCartWithCallInfo(
       callRecord.abandonedCartId,
       callId,
-      webhookData,
-      eventType,
-      callStatus
+      callAnalysis,
+      eventType
     );
 
     // Update billing period usage for abandoned calls
@@ -406,15 +284,12 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
 
     logDbOperation("UPDATE", "Call", callRecord._id, null, {
       webhookEvent: eventType,
-      callStatus: callStatus,
-      endedReason: (webhookData.message || webhookData).endedReason,
-      reasonCategory: (webhookData.message || webhookData).endedReason
-        ? categorizeEndedReason(
-            (webhookData.message || webhookData).endedReason
-          )
-        : null,
-      nextCallTime: callUpdateData.nextCallTime,
-      picked: callUpdateData.picked,
+      callStatus: callAnalysis.callUpdateData.callStatus,
+      callOutcome: callAnalysis.callUpdateData.callOutcome,
+      finalAction: callAnalysis.callUpdateData.finalAction,
+      endedReason: callAnalysis.callUpdateData.endedReason,
+      picked: callAnalysis.callUpdateData.picked,
+      nextCallTime: callAnalysis.callUpdateData.nextCallTime,
     });
   } catch (error) {
     console.error(
@@ -430,14 +305,272 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
 }
 
 /**
+ * Process call analysis and determine outcomes
+ */
+async function processCallAnalysis(
+  webhookData,
+  callId,
+  callStatus,
+  eventType,
+  callRecord
+) {
+  const callData = webhookData.message || webhookData;
+  const callUpdateData = {
+    updatedAt: new Date(),
+  };
+
+  // Handle different event types
+  if (eventType === "status-update") {
+    // Basic status update
+    if (callData.call?.status) {
+      callUpdateData.callStatus = callData.call.status;
+      if (callData.call.status === "in-progress") {
+        callUpdateData.picked = true;
+      }
+    }
+  } else if (eventType === "end-of-call-report") {
+    // End of call - perform full analysis
+    return await processEndOfCallReport(callData, callRecord, callUpdateData);
+  } else if (eventType === "hang") {
+    // Call hangup
+    callUpdateData.callStatus = callStatus || "ended";
+    callUpdateData.endedReason = "call-hung-up";
+    callUpdateData.providerEndReason = "call-hung-up";
+  } else {
+    // Unknown event type
+    console.log(`⚠️ Unknown VAPI event type: ${eventType} for call ${callId}`);
+    if (callStatus) {
+      callUpdateData.callStatus = callStatus;
+    }
+  }
+
+  return { callUpdateData };
+}
+
+/**
+ * Process end of call report with AI analysis
+ */
+async function processEndOfCallReport(callData, callRecord, callUpdateData) {
+  // Store basic call data
+  callUpdateData.providerEndReason = callData.endedReason;
+  callUpdateData.endedReason = callData.endedReason;
+
+  if (callData.cost !== undefined) callUpdateData.cost = callData.cost;
+  if (callData.duration !== undefined)
+    callUpdateData.duration = callData.duration;
+  if (callData.transcript) callUpdateData.transcript = callData.transcript;
+  if (callData.summary) callUpdateData.summary = callData.summary;
+  if (callData.recordingUrl)
+    callUpdateData.recordingUrl = callData.recordingUrl;
+
+  // Determine if customer was reached
+  const reasonCategory = categorizeEndedReason(callData.endedReason);
+  const wasCustomerReached =
+    reasonCategory === "customer_answered" ||
+    reasonCategory === "assistant_ended";
+
+  callUpdateData.picked = wasCustomerReached;
+
+  if (wasCustomerReached && (callData.recordingUrl || callData.transcript)) {
+    // Customer was reached - perform AI analysis
+    console.log("🤖 Starting AI call analysis...");
+    try {
+      const analysisResult = await callAnalysisService.analyzeCall({
+        recordingUrl: callData.recordingUrl,
+        transcript: callData.transcript,
+        endedReason: callData.endedReason,
+        updatedAt: new Date(),
+      });
+
+      callUpdateData.callOutcome = analysisResult.callOutcome;
+      callUpdateData.finalAction = analysisResult.finalAction;
+
+      // Store AI analysis data in callAnalysis object
+      callUpdateData.callAnalysis = {
+        summary: analysisResult.summary,
+        transcript: callData.transcript,
+        callOutcome: analysisResult.callOutcome,
+        structuredData: analysisResult.structuredData,
+        confidence: analysisResult.confidence,
+        analysisMethod: analysisResult.analysisMethod,
+        timestamp: new Date(),
+      };
+      callUpdateData.callStatus = CALL_STATUS.PICKED;
+
+      console.log(
+        `✅ AI analysis completed - Outcome: ${analysisResult.callOutcome}, Action: ${analysisResult.finalAction}`
+      );
+    } catch (analysisError) {
+      console.error("❌ AI analysis failed:", analysisError.message);
+      // Fall back to basic analysis
+      callUpdateData.callOutcome = "not_interested";
+      callUpdateData.finalAction = "no_action_required";
+
+      // Store fallback analysis data in callAnalysis object
+      callUpdateData.callAnalysis = {
+        summary: "AI analysis failed - using fallback analysis",
+        transcript: callData.transcript,
+        callOutcome: "not_interested",
+        structuredData: {},
+        confidence: 0.3,
+        analysisMethod: "fallback_analysis",
+        timestamp: new Date(),
+      };
+      callUpdateData.callStatus = CALL_STATUS.PICKED;
+    }
+  } else {
+    // Customer was not reached - use basic categorization
+    const reasonCategory = categorizeEndedReason(callData.endedReason);
+
+    if (reasonCategory === "technical_error") {
+      // Technical error - call was not actually made to customer
+      callUpdateData.callOutcome = "technical_issues";
+      callUpdateData.finalAction = "scheduled_retry";
+      callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
+      callUpdateData.picked = false;
+
+      // Store technical error details in callAnalysis
+      callUpdateData.callAnalysis = {
+        summary: `Technical error occurred: ${callData.endedReason}. Call was not made to customer.`,
+        transcript: callData.transcript,
+        callOutcome: "technical_issues",
+        structuredData: {
+          technicalError: callData.endedReason,
+          errorType: "technical_failure",
+        },
+        confidence: 1.0,
+        analysisMethod: "technical_error",
+        timestamp: new Date(),
+      };
+    } else {
+      // Regular no-answer/busy scenarios
+      const { callOutcome, finalAction } = getBasicCallOutcome(
+        callData.endedReason
+      );
+
+      callUpdateData.callOutcome = callOutcome;
+      callUpdateData.finalAction = finalAction;
+      callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
+    }
+  }
+
+  // Calculate next call time for retry scenarios
+  if (callUpdateData.finalAction === "scheduled_retry") {
+    const nextCallTime = await calculateRetryTime(
+      callRecord,
+      callData.endedReason
+    );
+    callUpdateData.nextCallTime = nextCallTime;
+  } else {
+    callUpdateData.nextCallTime = null;
+  }
+
+  return { callUpdateData };
+}
+
+/**
+ * Get basic call outcome based on ended reason
+ */
+function getBasicCallOutcome(endedReason) {
+  const reasonCategory = categorizeEndedReason(endedReason);
+
+  let callOutcome;
+  switch (reasonCategory) {
+    case "customer_busy":
+      callOutcome = "customer_busy";
+      break;
+    case "customer_no_answer":
+      callOutcome = "no_answer";
+      break;
+    case "voicemail":
+      callOutcome = "voicemail";
+      break;
+    case "technical_error":
+      callOutcome = "technical_issues";
+      break;
+    default:
+      callOutcome = "call_disconnected";
+  }
+
+  const finalAction = determineFinalActionFromOutcome(callOutcome);
+  return { callOutcome, finalAction };
+}
+
+/**
+ * Determine final action based on call outcome (same logic as callAnalysisService)
+ */
+function determineFinalActionFromOutcome(callOutcome) {
+  switch (callOutcome) {
+    case "completed_purchase":
+      return "order_completed";
+
+    case "do_not_call_request":
+    case "abusive_language":
+      return "marked_dnc";
+
+    case "reschedule_request":
+      return "reschedule_call";
+
+    case "wants_discount":
+    case "wants_free_shipping":
+      return "SMS_sent_with_discount_code";
+
+    case "customer_busy":
+      return "scheduled_retry";
+
+    case "not_interested":
+    case "will_think_about_it":
+    case "technical_issues":
+    case "wrong_person":
+    case "no_answer":
+    case "voicemail":
+    case "call_disconnected":
+    default:
+      return "no_action_required";
+  }
+}
+
+/**
+ * Calculate retry time based on agent configuration
+ */
+async function calculateRetryTime(callRecord, endedReason) {
+  try {
+    // Get agent retry intervals
+    let agentRetryIntervals = [];
+    if (callRecord.agentId) {
+      const agent = await Agent.findById(callRecord.agentId);
+      if (agent?.callLogic?.callSchedule?.retryIntervals) {
+        agentRetryIntervals = agent.callLogic.callSchedule.retryIntervals;
+      }
+    }
+
+    // Get current attempt count
+    const abandonedCart = await AbandonedCart.findById(
+      callRecord.abandonedCartId
+    );
+    const currentAttempts = abandonedCart
+      ? (abandonedCart.totalAttempts || 0) + 1
+      : 1;
+
+    return calculateNextCallTime(
+      currentAttempts,
+      agentRetryIntervals,
+      endedReason
+    );
+  } catch (error) {
+    console.error("❌ Error calculating retry time:", error.message);
+    return new Date(Date.now() + 30 * 60 * 1000); // Default 30 minutes
+  }
+}
+
+/**
  * Update AbandonedCart with basic call information (no transcript/summary)
  */
 async function updateAbandonedCartWithCallInfo(
   abandonedCartId,
   callId,
-  webhookData,
-  eventType,
-  callStatus
+  callAnalysis,
+  eventType
 ) {
   try {
     console.log(`🛒 Updating AbandonedCart ${abandonedCartId} with call info`);
@@ -448,133 +581,66 @@ async function updateAbandonedCartWithCallInfo(
       return;
     }
 
-    // Get agent retry intervals and max retries from the call record
-    let agentRetryIntervals = [];
-    let maxRetries = 6; // Default fallback
+    // Get agent configuration
     const callRecord = await Call.findOne({ callId: callId });
-    if (callRecord && callRecord.agentId) {
-      const agent = await Agent.findById(callRecord.agentId);
-      if (agent && agent.callLogic && agent.callLogic.callSchedule) {
-        if (agent.callLogic.callSchedule.retryIntervals) {
-          agentRetryIntervals = agent.callLogic.callSchedule.retryIntervals;
-        }
-        if (agent.callLogic.callSchedule.maxRetries) {
-          maxRetries = agent.callLogic.callSchedule.maxRetries;
-        }
-        console.log(
-          `📋 Found agent config: ${agentRetryIntervals.length} retry intervals, maxRetries: ${maxRetries}`
-        );
-      }
-    }
+    const { maxRetries } = await getAgentConfig(callRecord);
 
-    // Update AbandonedCart fields
-    const newTotalAttempts = abandonedCart.totalAttempts + 1;
+    // Update basic fields - don't increment attempts for technical errors
+    const reasonCategory = categorizeEndedReason(
+      callAnalysis.callUpdateData.endedReason
+    );
+    const isTechnicalError = reasonCategory === "technical_error";
+
+    const newTotalAttempts = isTechnicalError
+      ? abandonedCart.totalAttempts // Don't increment for technical errors
+      : abandonedCart.totalAttempts + 1; // Increment for actual call attempts
+
     const hasReachedMaxRetries = newTotalAttempts >= maxRetries;
 
     const updateData = {
       totalAttempts: newTotalAttempts,
       lastAttemptTime: new Date(),
-      lastCallStatus: callStatus,
+      lastCallStatus: callAnalysis.callUpdateData.callStatus,
+      lastCallOutcome: callAnalysis.callUpdateData.callOutcome,
+      finalAction: callAnalysis.callUpdateData.finalAction,
+      providerEndReason: callAnalysis.callUpdateData.providerEndReason,
+      callEndingReason: callAnalysis.callUpdateData.endedReason,
     };
 
-    // Update based on webhook type
-    if (eventType === "end-of-call-report") {
-      const callData = webhookData.message || webhookData;
+    // Store AI analysis data if available
+    if (callAnalysis.callUpdateData.callAnalysis) {
+      updateData.callAnalysis = callAnalysis.callUpdateData.callAnalysis;
+    }
 
-      if (callData.endedReason) {
-        // Determine outcome and status based on ended reason
-        let outcome = null;
-        let callStatus = null;
-        let nextAction = null;
-        let nextActionTime = null;
+    // Determine next action based on call outcome
+    const shouldRetry = shouldScheduleRetry(
+      callAnalysis.callUpdateData.callOutcome,
+      callAnalysis.callUpdateData.finalAction,
+      hasReachedMaxRetries
+    );
 
-        if (callData.endedReason === "customer-ended-call") {
-          outcome = "not_interested";
-          callStatus = CALL_STATUS.PICKED;
-          nextAction = "complete";
-          nextActionTime = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
-        } else if (callData.endedReason === "customer-busy") {
-          outcome = "customer_busy";
-          callStatus = CALL_STATUS.NOT_PICKED;
-          nextAction = "reschedule";
-          const nextAttempt = abandonedCart.totalAttempts + 1;
-          nextActionTime = calculateNextCallTime(
-            nextAttempt,
-            agentRetryIntervals,
-            callData.endedReason
-          );
-        } else if (callData.endedReason === "customer-did-not-answer") {
-          outcome = "no_answer";
-          callStatus = CALL_STATUS.NOT_PICKED;
-          nextAction = "reschedule";
-          const nextAttempt = abandonedCart.totalAttempts + 1;
-          nextActionTime = calculateNextCallTime(
-            nextAttempt,
-            agentRetryIntervals,
-            callData.endedReason
-          );
-        } else {
-          outcome = "call_disconnected";
-          callStatus = CALL_STATUS.NOT_PICKED;
-          nextAction = "reschedule";
-          const nextAttempt = abandonedCart.totalAttempts + 1;
-          nextActionTime = calculateNextCallTime(
-            nextAttempt,
-            agentRetryIntervals,
-            callData.endedReason
-          );
-        }
+    if (shouldRetry) {
+      updateData.nextAttemptShouldBeMade = true;
+      updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
+      updateData.orderQueueStatus = ORDER_QUEUE_STATUS.PENDING;
 
-        // Update the call status in updateData
-        updateData.lastCallStatus = callStatus;
+      // Create new CallQueue entry for retry
+      // For technical errors, use current attempt number (not incremented)
+      // For regular calls, use newTotalAttempts (incremented)
+      const retryAttemptNumber = isTechnicalError
+        ? abandonedCart.totalAttempts
+        : newTotalAttempts;
 
-        updateData.lastCallOutcome = outcome;
-        updateData.providerEndReason = callData.endedReason;
-        updateData.callEndingReason = callData.endedReason;
-
-        // Determine final action based on outcome
-        if (outcome === "not_interested") {
-          updateData.nextAttemptShouldBeMade = false;
-          updateData.finalAction = "no_action_required";
-          updateData.nextCallTime = null;
-          updateData.orderQueueStatus = ORDER_QUEUE_STATUS.COMPLETED;
-        } else if (hasReachedMaxRetries) {
-          updateData.nextAttemptShouldBeMade = false;
-          updateData.finalAction = "no_action_required";
-          updateData.nextCallTime = null;
-          updateData.orderQueueStatus = ORDER_QUEUE_STATUS.COMPLETED;
-        } else if (
-          outcome === "customer_busy" ||
-          outcome === "no_answer" ||
-          outcome === "call_disconnected"
-        ) {
-          updateData.nextAttemptShouldBeMade = true;
-          updateData.finalAction = "scheduled_retry";
-          updateData.nextCallTime = nextActionTime;
-          updateData.orderQueueStatus = ORDER_QUEUE_STATUS.PENDING;
-
-          // Create new CallQueue entry for retry
-          await createRetryCallQueueEntry(
-            abandonedCart,
-            callRecord,
-            nextActionTime,
-            newTotalAttempts
-          );
-        } else {
-          updateData.nextAttemptShouldBeMade = true;
-          updateData.finalAction = "scheduled_retry";
-          updateData.nextCallTime = nextActionTime;
-          updateData.orderQueueStatus = ORDER_QUEUE_STATUS.PENDING;
-
-          // Create new CallQueue entry for retry
-          await createRetryCallQueueEntry(
-            abandonedCart,
-            callRecord,
-            nextActionTime,
-            newTotalAttempts
-          );
-        }
-      }
+      await createRetryCallQueueEntry(
+        abandonedCart,
+        callRecord,
+        callAnalysis.callUpdateData.nextCallTime,
+        retryAttemptNumber
+      );
+    } else {
+      updateData.nextAttemptShouldBeMade = false;
+      updateData.nextCallTime = null;
+      updateData.orderQueueStatus = ORDER_QUEUE_STATUS.COMPLETED;
     }
 
     // Update the AbandonedCart
@@ -597,6 +663,10 @@ async function updateAbandonedCartWithCallInfo(
       nextAttemptShouldBeMade: updateData.nextAttemptShouldBeMade,
       finalAction: updateData.finalAction,
       orderQueueStatus: updateData.orderQueueStatus,
+      isTechnicalError: isTechnicalError,
+      technicalErrorReason: isTechnicalError
+        ? callAnalysis.callUpdateData.endedReason
+        : null,
     });
   } catch (error) {
     console.error(
@@ -610,6 +680,48 @@ async function updateAbandonedCartWithCallInfo(
       errorMessage: error.message,
     });
   }
+}
+
+/**
+ * Get agent configuration for retry settings
+ */
+async function getAgentConfig(callRecord) {
+  let maxRetries = 6; // Default fallback
+
+  if (callRecord && callRecord.agentId) {
+    const agent = await Agent.findById(callRecord.agentId);
+    if (agent?.callLogic?.callSchedule?.maxRetries) {
+      maxRetries = agent.callLogic.callSchedule.maxRetries;
+    }
+  }
+
+  return { maxRetries };
+}
+
+/**
+ * Determine if a retry should be scheduled
+ */
+function shouldScheduleRetry(callOutcome, finalAction, hasReachedMaxRetries) {
+  // Don't retry if max attempts reached (only for actual customer attempts)
+  if (hasReachedMaxRetries) return false;
+
+  // Don't retry for completed or DNC cases
+  if (
+    callOutcome === "completed_purchase" ||
+    callOutcome === "do_not_call_request" ||
+    callOutcome === "abusive_language"
+  ) {
+    return false;
+  }
+
+  // Always retry for technical errors (they don't count as customer attempts)
+  if (callOutcome === "technical_issues") return true;
+
+  // Retry for scheduled_retry actions
+  if (finalAction === "scheduled_retry") return true;
+
+  // Default to no retry for other cases
+  return false;
 }
 
 /**
@@ -746,10 +858,13 @@ async function createRetryCallQueueEntry(
       cartId: originalCallQueueEntry.cartId,
       status: "pending",
       nextAttemptTime: nextAttemptTime,
-      attemptNumber: attemptNumber,
+      attemptNumber: attemptNumber + 1,
       lastProcessedAt: null,
-      processingNotes: `Retry attempt ${attemptNumber} - scheduled for ${nextAttemptTime.toISOString()}`,
+      processingNotes: `Retry attempt ${attemptNumber} - scheduled for ${formatReadableTime(
+        nextAttemptTime
+      )}`,
       correlationId: retryCorrelationId,
+      action: "scheduled_retry",
       addedAt: new Date(),
     };
 
@@ -765,7 +880,7 @@ async function createRetryCallQueueEntry(
       type: "retry_attempt",
       originalCallQueueId: originalCallQueueEntry._id,
       abandonedCartId: abandonedCart._id,
-      attemptNumber: attemptNumber,
+      attemptNumber: attemptNumber + 1,
       nextAttemptTime: nextAttemptTime,
       correlationId: retryCorrelationId,
       reason: "Customer busy or no answer - scheduling retry",
@@ -782,7 +897,7 @@ async function createRetryCallQueueEntry(
     );
     logApiError("VAPI_WEBHOOK", "create_retry_call_queue", 500, error, null, {
       abandonedCartId: abandonedCart._id,
-      attemptNumber: attemptNumber,
+      attemptNumber: attemptNumber + 1,
       nextAttemptTime: nextAttemptTime,
       errorMessage: error.message,
     });
