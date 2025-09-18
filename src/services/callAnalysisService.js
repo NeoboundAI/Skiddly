@@ -145,7 +145,29 @@ For call outcomes when customer was reached (picked), use these options:
 - technical_issues: Customer had technical issues with website
 - wrong_person: Reached wrong person
 
-Provide your analysis as a JSON object:
+CRITICAL: Pay special attention to RESCHEDULE REQUESTS. Look for these patterns:
+- Specific times: "call me at 3 PM", "call me tomorrow at 2:30", "call me at 4 o'clock"
+- Relative times: "call me in 2 hours", "call me later", "call me tomorrow morning"
+- Timezone hints: "call me at 3 PM EST", "call me at 2 PM my time", "call me at 5 PM IST"
+- Date references: "tomorrow", "next week", "Monday", "this afternoon", "this evening"
+- Time periods: "morning", "afternoon", "evening", "night"
+
+For reschedule requests, extract:
+- rescheduleRequested: true if customer wants to reschedule
+- rescheduleTime: Extract the specific time (e.g., "3:00 PM", "14:30", "2 o'clock")
+- rescheduleDate: Extract the date (e.g., "tomorrow", "2024-01-15", "Monday")
+- rescheduleTimezone: Extract timezone hints (e.g., "EST", "IST", "my time")
+- relativeTime: Extract relative expressions (e.g., "in 2 hours", "tomorrow morning")
+
+Examples of reschedule extraction:
+- "Call me at 3 PM tomorrow" → rescheduleTime: "3:00 PM", rescheduleDate: "tomorrow"
+- "Call me in 2 hours" → relativeTime: "in 2 hours"
+- "Call me at 2 PM EST" → rescheduleTime: "2:00 PM", rescheduleTimezone: "EST"
+- "Call me tomorrow morning" → rescheduleDate: "tomorrow", relativeTime: "tomorrow morning"
+- "Call me later today" → relativeTime: "later today"
+
+IMPORTANT: Respond with ONLY a valid JSON object. Do not include any markdown formatting, code blocks, or additional text. Just the raw JSON.
+
 {
   "summary": "Complete summary of the call as a string",
   "callOutcome": "one of the call outcome options above",
@@ -153,8 +175,11 @@ Provide your analysis as a JSON object:
     "customerName": "customer name if mentioned",
     "customerPhone": "phone number if mentioned",
     "discountRequested": "discount amount or percentage if mentioned",
-    "rescheduleTime": "preferred time if customer wants to reschedule",
-    "rescheduleDate": "preferred date if customer wants to reschedule",
+    "rescheduleRequested": true/false,
+    "rescheduleTime": "extract specific time (e.g., '3:00 PM', '14:30', '2 o'clock')",
+    "rescheduleDate": "extract date (e.g., 'tomorrow', 'Monday', '2024-01-15')",
+    "rescheduleTimezone": "extract timezone hint (e.g., 'EST', 'IST', 'my time')",
+    "relativeTime": "extract relative expression (e.g., 'in 2 hours', 'tomorrow morning')",
     "purchaseCompleted": true/false,
     "technicalIssues": "description of technical issues if any",
     "additionalNotes": "any other important details"
@@ -181,7 +206,7 @@ Provide your analysis as a JSON object:
       // Try to clean up markdown formatting and extract JSON
       let cleanedText = responseText;
 
-      // Remove markdown code blocks
+      // Remove markdown code blocks (both ```json and ```)
       cleanedText = cleanedText
         .replace(/```json\s*/g, "")
         .replace(/```\s*/g, "");
@@ -201,12 +226,41 @@ Provide your analysis as a JSON object:
 
         // Try to extract JSON using regex as a last resort
         try {
-          const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+          // Look for JSON object between curly braces - use non-greedy match
+          const jsonMatch = cleanedText.match(/\{[\s\S]*?\}/);
           if (jsonMatch) {
             let parsedResponse = JSON.parse(jsonMatch[0]);
             return this.validateAnalysisResponse(parsedResponse, endedReason);
           } else {
-            console.error("❌ No JSON found in response");
+            // Try to find the first complete JSON object by counting braces
+            const jsonStart = cleanedText.indexOf("{");
+            if (jsonStart !== -1) {
+              let braceCount = 0;
+              let jsonEnd = -1;
+
+              for (let i = jsonStart; i < cleanedText.length; i++) {
+                if (cleanedText[i] === "{") braceCount++;
+                if (cleanedText[i] === "}") braceCount--;
+                if (braceCount === 0) {
+                  jsonEnd = i;
+                  break;
+                }
+              }
+
+              if (jsonEnd !== -1) {
+                const jsonString = cleanedText.substring(
+                  jsonStart,
+                  jsonEnd + 1
+                );
+                let parsedResponse = JSON.parse(jsonString);
+                return this.validateAnalysisResponse(
+                  parsedResponse,
+                  endedReason
+                );
+              }
+            }
+
+            console.error("❌ No valid JSON found in response");
             return this.getDefaultAnalysis(endedReason);
           }
         } catch (fallbackError) {

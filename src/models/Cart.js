@@ -46,6 +46,11 @@ const CartSchema = new mongoose.Schema(
       default: null,
     },
 
+    customerTimezone: {
+      type: String,
+      default: null,
+    },
+
     customerFirstName: {
       type: String,
       default: null,

@@ -18,6 +18,8 @@ import {
 } from "@/lib/apiLogger";
 import { CALL_STATUS, ORDER_QUEUE_STATUS } from "@/constants/callConstants.js";
 import callAnalysisService from "@/services/callAnalysisService";
+import { calculateRescheduleTime } from "@/services/rescheduleService";
+import { getTimezoneFromPhoneNumber } from "@/utils/timezoneUtils";
 
 /**
  * Append webhook data to single log file for analysis
@@ -621,7 +623,46 @@ async function updateAbandonedCartWithCallInfo(
 
     if (shouldRetry) {
       updateData.nextAttemptShouldBeMade = true;
-      updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
+
+      // Check if customer requested specific reschedule time
+      if (
+        callAnalysis.callUpdateData.callOutcome === "reschedule_request" &&
+        callAnalysis.callUpdateData.callAnalysis?.structuredData
+          ?.rescheduleRequested
+      ) {
+        // Get customer phone number from call record
+        const callRecord = await Call.findOne({ callId: callId });
+        const customerPhone = callRecord?.customerNumber;
+
+        if (customerPhone) {
+          // Calculate reschedule time based on customer request
+          const rescheduleResult = await calculateRescheduleTime(
+            callAnalysis.callUpdateData.callAnalysis,
+            customerPhone,
+            await getAgentConfig(callRecord)
+          );
+
+          if (rescheduleResult.success) {
+            updateData.nextCallTime = rescheduleResult.nextCallTime;
+            console.log(
+              `📅 Customer requested reschedule: ${rescheduleResult.customerRequest} -> ${rescheduleResult.nextCallTime}`
+            );
+          } else {
+            // Fallback to agent's retry intervals
+            updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
+            console.log(
+              `⚠️ Reschedule request failed: ${rescheduleResult.reason}, using agent retry intervals`
+            );
+          }
+        } else {
+          // No phone number, use agent's retry intervals
+          updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
+        }
+      } else {
+        // Use agent's retry intervals for other cases
+        updateData.nextCallTime = callAnalysis.callUpdateData.nextCallTime;
+      }
+
       updateData.orderQueueStatus = ORDER_QUEUE_STATUS.PENDING;
 
       // Create new CallQueue entry for retry
