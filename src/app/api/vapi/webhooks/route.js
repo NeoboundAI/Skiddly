@@ -516,13 +516,13 @@ function determineFinalActionFromOutcome(callOutcome) {
       return "SMS_sent_with_discount_code";
 
     case "customer_busy":
+    case "no_answer":
       return "scheduled_retry";
 
     case "not_interested":
     case "will_think_about_it":
     case "technical_issues":
     case "wrong_person":
-    case "no_answer":
     case "voicemail":
     case "call_disconnected":
     default:
