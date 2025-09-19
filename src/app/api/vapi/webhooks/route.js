@@ -247,13 +247,30 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
 
     console.log(`📞 Found call record: ${callRecord._id}`);
 
+    // Fetch related data once to avoid multiple database calls
+    const [abandonedCart, agent, callQueueEntry] = await Promise.all([
+      AbandonedCart.findById(callRecord.abandonedCartId),
+      callRecord.agentId ? Agent.findById(callRecord.agentId) : null,
+      CallQueue.findOne({
+        abandonedCartId: callRecord.abandonedCartId,
+        correlationId: callRecord.correlationId,
+      }),
+    ]);
+
+    if (!abandonedCart) {
+      console.log(`⚠️ AbandonedCart not found: ${callRecord.abandonedCartId}`);
+      return;
+    }
+
     // Process the webhook and get call analysis
     const callAnalysis = await processCallAnalysis(
       webhookData,
       callId,
       callStatus,
       eventType,
-      callRecord
+      callRecord,
+      abandonedCart,
+      agent
     );
 
     // Update the Call record with analysis results
@@ -270,17 +287,28 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
       callRecord.abandonedCartId,
       callId,
       callAnalysis,
-      eventType
+      eventType,
+      abandonedCart,
+      agent,
+      callRecord,
+      callQueueEntry
     );
 
     // Update billing period usage for abandoned calls
     await updateBillingPeriodUsage(
       callRecord.userId,
-      callRecord.abandonedCartId
+      callRecord.abandonedCartId,
+      abandonedCart
     );
 
     // Move completed call queue entry to ProcessedCallQueue
-    await moveCallQueueToProcessed(callId, callRecord, webhookData, eventType);
+    await moveCallQueueToProcessed(
+      callId,
+      callRecord,
+      webhookData,
+      eventType,
+      callQueueEntry
+    );
 
     logDbOperation("UPDATE", "Call", callRecord._id, null, {
       webhookEvent: eventType,
@@ -312,7 +340,9 @@ async function processCallAnalysis(
   callId,
   callStatus,
   eventType,
-  callRecord
+  callRecord,
+  abandonedCart,
+  agent
 ) {
   const callData = webhookData.message || webhookData;
   const callUpdateData = {
@@ -458,7 +488,9 @@ async function processEndOfCallReport(callData, callRecord, callUpdateData) {
   if (callUpdateData.finalAction === "scheduled_retry") {
     const nextCallTime = await calculateRetryTime(
       callRecord,
-      callData.endedReason
+      callData.endedReason,
+      abandonedCart,
+      agent
     );
     callUpdateData.nextCallTime = nextCallTime;
   } else {
@@ -533,24 +565,21 @@ function determineFinalActionFromOutcome(callOutcome) {
 /**
  * Calculate retry time based on agent configuration
  */
-async function calculateRetryTime(callRecord, endedReason) {
+async function calculateRetryTime(
+  callRecord,
+  endedReason,
+  abandonedCart,
+  agent
+) {
   try {
     // Get agent retry intervals
     let agentRetryIntervals = [];
-    if (callRecord.agentId) {
-      const agent = await Agent.findById(callRecord.agentId);
-      if (agent?.callLogic?.callSchedule?.retryIntervals) {
-        agentRetryIntervals = agent.callLogic.callSchedule.retryIntervals;
-      }
+    if (agent?.callLogic?.callSchedule?.retryIntervals) {
+      agentRetryIntervals = agent.callLogic.callSchedule.retryIntervals;
     }
 
     // Get current attempt count
-    const abandonedCart = await AbandonedCart.findById(
-      callRecord.abandonedCartId
-    );
-    const currentAttempts = abandonedCart
-      ? (abandonedCart.totalAttempts || 0) + 1
-      : 1;
+    const currentAttempts = (abandonedCart.totalAttempts || 0) + 1;
 
     return calculateNextCallTime(
       currentAttempts,
@@ -570,20 +599,17 @@ async function updateAbandonedCartWithCallInfo(
   abandonedCartId,
   callId,
   callAnalysis,
-  eventType
+  eventType,
+  abandonedCart,
+  agent,
+  callRecord,
+  callQueueEntry
 ) {
   try {
     console.log(`🛒 Updating AbandonedCart ${abandonedCartId} with call info`);
 
-    const abandonedCart = await AbandonedCart.findById(abandonedCartId);
-    if (!abandonedCart) {
-      console.log(`⚠️ AbandonedCart not found: ${abandonedCartId}`);
-      return;
-    }
-
     // Get agent configuration
-    const callRecord = await Call.findOne({ callId: callId });
-    const { maxRetries } = await getAgentConfig(callRecord);
+    const { maxRetries } = getAgentConfig(agent);
 
     // Update basic fields - don't increment attempts for technical errors
     const reasonCategory = categorizeEndedReason(
@@ -635,7 +661,8 @@ async function updateAbandonedCartWithCallInfo(
         abandonedCart,
         callRecord,
         callAnalysis.callUpdateData.nextCallTime,
-        retryAttemptNumber
+        retryAttemptNumber,
+        callQueueEntry
       );
     } else {
       updateData.nextAttemptShouldBeMade = false;
@@ -685,14 +712,11 @@ async function updateAbandonedCartWithCallInfo(
 /**
  * Get agent configuration for retry settings
  */
-async function getAgentConfig(callRecord) {
+function getAgentConfig(agent) {
   let maxRetries = 6; // Default fallback
 
-  if (callRecord && callRecord.agentId) {
-    const agent = await Agent.findById(callRecord.agentId);
-    if (agent?.callLogic?.callSchedule?.maxRetries) {
-      maxRetries = agent.callLogic.callSchedule.maxRetries;
-    }
+  if (agent?.callLogic?.callSchedule?.maxRetries) {
+    maxRetries = agent.callLogic.callSchedule.maxRetries;
   }
 
   return { maxRetries };
@@ -731,19 +755,15 @@ async function moveCallQueueToProcessed(
   callId,
   callRecord,
   webhookData,
-  eventType
+  eventType,
+  callQueueEntry
 ) {
   try {
     console.log(
       `🔄 Moving call queue entry to ProcessedCallQueue for call: ${callId}`
     );
 
-    // Find the call queue entry by abandonedCartId and correlationId
-    // The CallQueue doesn't have callId, but we can match via abandonedCartId and correlationId
-    const callQueueEntry = await CallQueue.findOne({
-      abandonedCartId: callRecord.abandonedCartId,
-      correlationId: callRecord.correlationId,
-    });
+    // Use the passed callQueueEntry
     if (!callQueueEntry) {
       console.log(
         `⚠️ Call queue entry not found for abandonedCartId: ${callRecord.abandonedCartId}, correlationId: ${callRecord.correlationId}`
@@ -825,19 +845,15 @@ async function createRetryCallQueueEntry(
   abandonedCart,
   callRecord,
   nextAttemptTime,
-  attemptNumber
+  attemptNumber,
+  originalCallQueueEntry
 ) {
   try {
     console.log(
       `🔄 Creating retry CallQueue entry for abandonedCart: ${abandonedCart._id}, attempt: ${attemptNumber}`
     );
 
-    // Find the original CallQueue entry to replicate
-    const originalCallQueueEntry = await CallQueue.findOne({
-      abandonedCartId: callRecord.abandonedCartId,
-      correlationId: callRecord.correlationId,
-    });
-
+    // Use the passed originalCallQueueEntry
     if (!originalCallQueueEntry) {
       throw new Error(
         `Original CallQueue entry not found for abandonedCartId: ${callRecord.abandonedCartId}, correlationId: ${callRecord.correlationId}`
@@ -1060,12 +1076,15 @@ function categorizeEndedReason(endedReason) {
 /**
  * Update billing period usage for abandoned calls
  */
-async function updateBillingPeriodUsage(userId, abandonedCartId) {
+async function updateBillingPeriodUsage(
+  userId,
+  abandonedCartId,
+  abandonedCart
+) {
   try {
     // Check if this is the first call for this abandoned cart
-    const abandonedCart = await AbandonedCart.findById(abandonedCartId);
-    if (abandonedCart && abandonedCart.totalAttempts === 0) {
-      // First call for this unique abandoned cart (totalAttempts is 0 before incrementing)
+    if (abandonedCart && abandonedCart.totalAttempts === 1) {
+      // First call for this unique abandoned cart (totalAttempts is 1 after incrementing)
 
       // Update User model usage
       await User.findByIdAndUpdate(userId, {
