@@ -282,33 +282,39 @@ async function processVapiWebhook(webhookData, callId, callStatus, eventType) {
 
     console.log(`✅ Updated Call record: ${updatedCall._id}`);
 
-    // Update AbandonedCart with call information
-    await updateAbandonedCartWithCallInfo(
-      callRecord.abandonedCartId,
-      callId,
-      callAnalysis,
-      eventType,
-      abandonedCart,
-      agent,
-      callRecord,
-      callQueueEntry
-    );
+    // Update AbandonedCart with call information only for end-of-call-report
+    // (status-update events should only update the Call record, not AbandonedCart)
+    if (eventType === "end-of-call-report") {
+      await updateAbandonedCartWithCallInfo(
+        callRecord.abandonedCartId,
+        callId,
+        callAnalysis,
+        eventType,
+        abandonedCart,
+        agent,
+        callRecord,
+        callQueueEntry
+      );
 
-    // Update billing period usage for abandoned calls
-    await updateBillingPeriodUsage(
-      callRecord.userId,
-      callRecord.abandonedCartId,
-      abandonedCart
-    );
+      // Update billing period usage for abandoned calls
+      await updateBillingPeriodUsage(
+        callRecord.userId,
+        callRecord.abandonedCartId,
+        abandonedCart
+      );
+    }
 
-    // Move completed call queue entry to ProcessedCallQueue
-    await moveCallQueueToProcessed(
-      callId,
-      callRecord,
-      webhookData,
-      eventType,
-      callQueueEntry
-    );
+    // Move completed call queue entry to ProcessedCallQueue only for end-of-call-report
+    // (not for status-update events, as end-of-call-report comes later with full details)
+    if (eventType === "end-of-call-report") {
+      await moveCallQueueToProcessed(
+        callId,
+        callRecord,
+        webhookData,
+        eventType,
+        callQueueEntry
+      );
+    }
 
     logDbOperation("UPDATE", "Call", callRecord._id, null, {
       webhookEvent: eventType,
