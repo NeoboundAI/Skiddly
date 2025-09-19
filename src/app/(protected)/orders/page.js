@@ -165,12 +165,10 @@ export default function OrdersPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="p-6 bg-white min-h-screen">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Abandoned Cart Recovery
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
         </div>
 
         {/* Summary Statistics */}
