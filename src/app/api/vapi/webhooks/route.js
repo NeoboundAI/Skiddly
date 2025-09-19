@@ -360,7 +360,13 @@ async function processCallAnalysis(
     }
   } else if (eventType === "end-of-call-report") {
     // End of call - perform full analysis
-    return await processEndOfCallReport(callData, callRecord, callUpdateData);
+    return await processEndOfCallReport(
+      callData,
+      callRecord,
+      callUpdateData,
+      abandonedCart,
+      agent
+    );
   } else if (eventType === "hang") {
     // Call hangup
     callUpdateData.callStatus = callStatus || "ended";
@@ -380,7 +386,13 @@ async function processCallAnalysis(
 /**
  * Process end of call report with AI analysis
  */
-async function processEndOfCallReport(callData, callRecord, callUpdateData) {
+async function processEndOfCallReport(
+  callData,
+  callRecord,
+  callUpdateData,
+  abandonedCart,
+  agent
+) {
   // Store basic call data
   callUpdateData.providerEndReason = callData.endedReason;
   callUpdateData.endedReason = callData.endedReason;
