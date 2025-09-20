@@ -396,6 +396,22 @@ async function processCallAnalysis(
         if (statusUpdate === "in-progress") {
           callUpdateData.picked = true;
           console.log(`📞 Customer picked up the call! Setting picked=true`);
+
+          // Update AbandonedCart when customer picks up
+          try {
+            await updateAbandonedCartOnPickup(
+              callRecord.abandonedCartId,
+              callId
+            );
+            console.log(
+              `✅ Updated AbandonedCart ${callRecord.abandonedCartId} - customer picked up`
+            );
+          } catch (error) {
+            console.error(
+              `❌ Failed to update AbandonedCart on pickup:`,
+              error.message
+            );
+          }
         } else if (statusUpdate === "ringing") {
           callUpdateData.picked = false;
           console.log(`📞 Call is ringing, customer not yet picked up`);
@@ -795,6 +811,67 @@ async function updateAbandonedCartWithCallInfo(
       eventType,
       errorMessage: error.message,
     });
+  }
+}
+
+/**
+ * Update AbandonedCart when customer picks up the call (in-progress status)
+ */
+async function updateAbandonedCartOnPickup(abandonedCartId, callId) {
+  try {
+    console.log(
+      `📞 Updating AbandonedCart ${abandonedCartId} - customer picked up call ${callId}`
+    );
+
+    const updateData = {
+      lastCallStatus: CALL_STATUS.PICKED,
+      lastCallOutcome: "customer_reached",
+      finalAction: "call_in_progress",
+      lastAttemptTime: new Date(),
+    };
+
+    // Update the AbandonedCart
+    const updatedAbandonedCart = await AbandonedCart.findByIdAndUpdate(
+      abandonedCartId,
+      updateData,
+      { new: true }
+    );
+
+    if (updatedAbandonedCart) {
+      console.log(
+        `✅ Updated AbandonedCart: ${updatedAbandonedCart._id} - customer picked up`
+      );
+
+      logDbOperation("UPDATE", "AbandonedCart", abandonedCartId, null, {
+        action: "customer_picked_up",
+        callId: callId,
+        lastCallStatus: CALL_STATUS.PICKED,
+        lastCallOutcome: "customer_reached",
+        finalAction: "call_in_progress",
+      });
+    } else {
+      console.log(`⚠️ AbandonedCart not found: ${abandonedCartId}`);
+    }
+
+    return { success: true, updatedAbandonedCart };
+  } catch (error) {
+    console.error(
+      `❌ Error updating AbandonedCart ${abandonedCartId} on pickup:`,
+      error.message
+    );
+    logApiError(
+      "VAPI_WEBHOOK",
+      "update_abandoned_cart_pickup",
+      500,
+      error,
+      null,
+      {
+        abandonedCartId,
+        callId,
+        errorMessage: error.message,
+      }
+    );
+    return { success: false, error: error.message };
   }
 }
 
