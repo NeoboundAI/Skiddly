@@ -167,6 +167,9 @@ export async function POST(request) {
     console.log(
       `🔍 VAPI Webhook: ${eventType} | Call: ${callId} | Status: ${callStatus}`
     );
+
+    // Log webhook processing order for debugging
+    console.log(`📋 Webhook processing: ${eventType} for call ${callId}`);
     // console.log("🔍 Extracted webhook info:", {
     //   callId,
     //   callStatus,
@@ -357,12 +360,22 @@ async function processCallAnalysis(
 
   // Handle different event types
   if (eventType === "status-update") {
-    // Basic status update
-    if (callData.call?.status) {
+    // Basic status update - only update if we don't already have a final status
+    // Don't override final statuses from end-of-call-report
+    console.log(
+      `📞 Status update for call ${callId}: ${callData.call?.status}, existing outcome: ${callRecord.callOutcome}`
+    );
+
+    if (callData.call?.status && !callRecord.callOutcome) {
       callUpdateData.callStatus = callData.call.status;
       if (callData.call.status === "in-progress") {
         callUpdateData.picked = true;
       }
+      console.log(`✅ Updated call status to: ${callData.call.status}`);
+    } else {
+      console.log(
+        `⏭️ Skipped status update - call already has outcome: ${callRecord.callOutcome}`
+      );
     }
   } else if (eventType === "end-of-call-report") {
     // End of call - perform full analysis
@@ -399,6 +412,10 @@ async function processEndOfCallReport(
   abandonedCart,
   agent
 ) {
+  console.log(
+    `🔚 Processing end-of-call-report for call ${callRecord.callId}, ended reason: ${callData.endedReason}`
+  );
+
   // Store basic call data
   callUpdateData.providerEndReason = callData.endedReason;
   callUpdateData.endedReason = callData.endedReason;
@@ -515,6 +532,27 @@ async function processEndOfCallReport(
     callUpdateData.nextCallTime = null;
   }
 
+  // Ensure we always set the correct final call status based on the ended reason
+  // This prevents status-update events from overriding the final status
+  if (!callUpdateData.callStatus) {
+    // Fallback: set status based on ended reason
+    const reasonCategory = categorizeEndedReason(callData.endedReason);
+    if (
+      reasonCategory === "customer_answered" ||
+      reasonCategory === "assistant_ended"
+    ) {
+      callUpdateData.callStatus = CALL_STATUS.PICKED;
+    } else {
+      callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
+    }
+    console.log(
+      `🔄 Set fallback call status: ${callUpdateData.callStatus} for reason: ${callData.endedReason}`
+    );
+  }
+
+  console.log(
+    `✅ End-of-call-report completed - Final status: ${callUpdateData.callStatus}, Outcome: ${callUpdateData.callOutcome}`
+  );
   return { callUpdateData };
 }
 

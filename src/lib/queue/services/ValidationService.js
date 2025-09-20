@@ -34,9 +34,11 @@ class ValidationService {
       if (!cart) {
         validation.isValid = false;
         validation.errors.push("Cart not found");
-      } else if (!cart.customerPhone) {
+      } else if (!cart.customerPhone && !cart.smsMarketingPhone) {
         validation.isValid = false;
-        validation.errors.push("No phone number found in cart");
+        validation.errors.push(
+          "No phone number found in cart (customerPhone or smsMarketingPhone)"
+        );
       }
 
       // Validate abandoned cart
@@ -90,9 +92,11 @@ class ValidationService {
   validateCartData(cart) {
     const errors = [];
 
-    // Check if cart has customer phone
-    if (!cart.customerPhone) {
-      errors.push("Cart missing customer phone number");
+    // Check if cart has customer phone or SMS marketing phone
+    if (!cart.customerPhone && !cart.smsMarketingPhone) {
+      errors.push(
+        "Cart missing customer phone number (customerPhone or smsMarketingPhone)"
+      );
     }
 
     // Check if cart has total price
@@ -109,6 +113,20 @@ class ValidationService {
       isValid: errors.length === 0,
       errors,
     };
+  }
+
+  /**
+   * Get the best available phone number from cart
+   * Priority: customerPhone > smsMarketingPhone
+   */
+  getCartPhoneNumber(cart) {
+    if (cart.customerPhone) {
+      return cart.customerPhone;
+    }
+    if (cart.smsMarketingPhone) {
+      return cart.smsMarketingPhone;
+    }
+    return null;
   }
 
   /**

@@ -1,8 +1,12 @@
 import { VapiClient } from "@vapi-ai/server-sdk";
 import Call from "../../../models/Call.js";
 import AbandonedCart from "../../../models/AbandonedCart.js";
-import { CALL_STATUS, ORDER_QUEUE_STATUS } from "../../../constants/callConstants.js";
+import {
+  CALL_STATUS,
+  ORDER_QUEUE_STATUS,
+} from "../../../constants/callConstants.js";
 import { logBusinessEvent, logApiError } from "../../apiLogger.js";
+import validationService from "./ValidationService.js";
 
 /**
  * Call Service
@@ -20,22 +24,27 @@ class CallService {
    */
   async initiateCall(agent, cart, callQueueEntry) {
     try {
+      // Get the best available phone number from cart
+      const cartPhoneNumber = validationService.getCartPhoneNumber(cart);
+
       console.log(
-        `📞 Initiating call to ${cart.customerPhone} for customer: ${
+        `📞 Initiating call to ${cartPhoneNumber} for customer: ${
           cart.customerFirstName || "Unknown"
         }`
       );
 
       // Get phone number configuration
       const phoneNumberConfig = agent.testLaunch?.connectedPhoneNumbers?.[0];
-      
+
       if (!phoneNumberConfig?.vapiNumberId) {
-        throw new Error(`No VAPI phone number configured for agent: ${agent._id}`);
+        throw new Error(
+          `No VAPI phone number configured for agent: ${agent._id}`
+        );
       }
 
       // Format phone number
-      const formattedPhoneNumber = this.formatPhoneNumber(cart.customerPhone);
-      
+      const formattedPhoneNumber = this.formatPhoneNumber(cartPhoneNumber);
+
       if (!formattedPhoneNumber) {
         throw new Error(`No valid phone number found for cart: ${cart._id}`);
       }
@@ -50,15 +59,27 @@ class CallService {
             : `+91${formattedPhoneNumber}`,
         },
         assistantOverrides: {
-          variableValues: this.buildCallVariables(agent, cart, formattedPhoneNumber),
+          variableValues: this.buildCallVariables(
+            agent,
+            cart,
+            formattedPhoneNumber
+          ),
         },
       });
 
       console.log("VAPI response:", vapiResponse);
-      console.log(`📞 Call initiated successfully. VAPI Call ID: ${vapiResponse.id}`);
+      console.log(
+        `📞 Call initiated successfully. VAPI Call ID: ${vapiResponse.id}`
+      );
 
       // Create call record in database
-      const callRecord = await this.createCallRecord(vapiResponse, callQueueEntry, agent, cart, formattedPhoneNumber);
+      const callRecord = await this.createCallRecord(
+        vapiResponse,
+        callQueueEntry,
+        agent,
+        cart,
+        formattedPhoneNumber
+      );
 
       // Update abandoned cart status
       await this.updateAbandonedCartStatus(callQueueEntry.abandonedCartId);
@@ -77,10 +98,12 @@ class CallService {
         callId: vapiResponse.id,
         callRecord,
       };
-
     } catch (error) {
-      console.error(`VAPI error for call queue entry ${callQueueEntry._id}:`, error.message);
-      
+      console.error(
+        `VAPI error for call queue entry ${callQueueEntry._id}:`,
+        error.message
+      );
+
       // Log API error
       logApiError(
         "CALL_SERVICE",
@@ -90,7 +113,7 @@ class CallService {
         callQueueEntry.userId,
         {
           callQueueId: callQueueEntry._id,
-          customerNumber: cart.customerPhone,
+          customerNumber: cartPhoneNumber,
           agentId: agent._id,
         }
       );
@@ -108,15 +131,15 @@ class CallService {
    */
   formatPhoneNumber(phoneNumber) {
     if (!phoneNumber) return null;
-    
+
     let formatted = phoneNumber;
     console.log("Original phone number:", formatted);
-    
+
     // Handle Indian phone numbers
     if (/^91\d{10}$/.test(formatted)) {
       formatted = `+${formatted}`;
     }
-    
+
     console.log("Formatted phone number:", formatted);
     return formatted;
   }
@@ -139,7 +162,13 @@ class CallService {
   /**
    * Create call record in database
    */
-  async createCallRecord(vapiResponse, callQueueEntry, agent, cart, formattedPhoneNumber) {
+  async createCallRecord(
+    vapiResponse,
+    callQueueEntry,
+    agent,
+    cart,
+    formattedPhoneNumber
+  ) {
     return await Call.create({
       callId: vapiResponse.id,
       userId: callQueueEntry.userId,
@@ -181,10 +210,10 @@ class CallService {
       "busy",
       "timeout",
       "network error",
-      "service unavailable"
+      "service unavailable",
     ];
-    
-    return retryableErrors.some(retryableError => 
+
+    return retryableErrors.some((retryableError) =>
       error.message.toLowerCase().includes(retryableError)
     );
   }
@@ -236,7 +265,10 @@ class CallService {
         recordingUrl: call.recordingUrl,
       };
     } catch (error) {
-      console.error(`Error fetching recording for call ${callId}:`, error.message);
+      console.error(
+        `Error fetching recording for call ${callId}:`,
+        error.message
+      );
       return {
         success: false,
         error: error.message,
