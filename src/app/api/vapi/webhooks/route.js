@@ -824,8 +824,8 @@ async function updateAbandonedCartOnPickup(abandonedCartId, callId) {
     );
 
     const updateData = {
-      lastCallStatus: CALL_STATUS.PICKED,
-      lastCallOutcome: "customer_reached",
+      lastCallStatus: "in-progress",
+      lastCallOutcome: "customer-reached",
       finalAction: "call_in_progress",
       lastAttemptTime: new Date(),
     };
@@ -845,8 +845,8 @@ async function updateAbandonedCartOnPickup(abandonedCartId, callId) {
       logDbOperation("UPDATE", "AbandonedCart", abandonedCartId, null, {
         action: "customer_picked_up",
         callId: callId,
-        lastCallStatus: CALL_STATUS.PICKED,
-        lastCallOutcome: "customer_reached",
+        lastCallStatus: "in-progress",
+        lastCallOutcome: "call_in_progress",
         finalAction: "call_in_progress",
       });
     } else {

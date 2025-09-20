@@ -23,10 +23,10 @@ class CallService {
    * Initiate a call using VAPI
    */
   async initiateCall(agent, cart, callQueueEntry) {
-    try {
-      // Get the best available phone number from cart
-      const cartPhoneNumber = validationService.getCartPhoneNumber(cart);
+    // Get the best available phone number from cart (outside try block for error logging)
+    const cartPhoneNumber = validationService.getCartPhoneNumber(cart);
 
+    try {
       console.log(
         `📞 Initiating call to ${cartPhoneNumber} for customer: ${
           cart.customerFirstName || "Unknown"
@@ -103,6 +103,12 @@ class CallService {
         `VAPI error for call queue entry ${callQueueEntry._id}:`,
         error.message
       );
+      console.error(`VAPI call details:`, {
+        customerNumber: cartPhoneNumber,
+        assistantId: agent.assistantId,
+        agentId: agent._id,
+        cartId: cart._id,
+      });
 
       // Log API error
       logApiError(
@@ -115,6 +121,9 @@ class CallService {
           callQueueId: callQueueEntry._id,
           customerNumber: cartPhoneNumber,
           agentId: agent._id,
+          assistantId: agent.assistantId,
+          cartId: cart._id,
+          errorDetails: error.message,
         }
       );
 
