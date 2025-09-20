@@ -72,17 +72,29 @@ const AuthWrapper = ({ children }) => {
     handleAuthFlow();
   }, [status, session, router]);
 
-  // Show loading while checking authentication and onboarding status
-  if (status === "loading" || isChecking) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-200 via-purple-50 to-purple-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
+  // ✅ Custom Loading Screen with Vector1 + Loader1 animation
+if (status === "loading" || isChecking) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-200 via-purple-50 to-purple-100">
+      <div className="relative w-24 h-24 flex items-center justify-center">
+        
+        {/* Smaller + lighter Vector in the center */}
+        <img
+          src="/Vector 1.svg"
+          alt="Center Logo"
+          className="w-6 h-6 z-10 opacity-80"
+        />
+
+        {/* Rotating Loader around Vector */}
+        <img
+          src="/Loader 1.svg"
+          alt="Rotating Loader"
+          className="absolute w-20 h-20 animate-spin-fast"
+        />
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // If not authenticated, only render children if on auth page
   if (status === "unauthenticated") {
@@ -90,14 +102,26 @@ const AuthWrapper = ({ children }) => {
       return children;
     }
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-200 via-purple-50 to-purple-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting to login...</p>
-        </div>
+     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-200 via-purple-50 to-purple-100">
+      <div className="relative w-24 h-24 flex items-center justify-center">
+        
+        {/* Smaller + lighter Vector in the center */}
+        <img
+          src="/Vector 1.svg"
+          alt="Center Logo"
+          className="w-6 h-6 z-10 opacity-80"
+        />
+
+        {/* Rotating Loader around Vector */}
+        <img
+          src="/Loader 1.svg"
+          alt="Rotating Loader"
+          className="absolute w-20 h-20 animate-spin-fast"
+        />
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // If authenticated, render children
   return children;
