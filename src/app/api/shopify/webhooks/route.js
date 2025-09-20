@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyShopifyWebhook } from "@/lib/shopify";
+import { verifyShopifyWebhook, getShopifyCustomer } from "@/lib/shopify";
 import connectDB from "@/lib/mongodb";
 import Cart from "@/models/Cart";
 import AbandonedCart from "@/models/AbandonedCart";
@@ -145,7 +145,12 @@ async function handleCheckoutCreateWebhook(
       cart = await Cart.findOneAndUpdate(
         { shopifyCheckoutId: checkout.id.toString() },
         {
-          ...buildCartData(checkout, shop, correlationId, finalShopDomain),
+          ...(await buildCartData(
+            checkout,
+            shop,
+            correlationId,
+            finalShopDomain
+          )),
           lastActivityAt: new Date(),
         },
         { new: true }
@@ -154,7 +159,12 @@ async function handleCheckoutCreateWebhook(
     } else {
       // Create new cart in inCheckout status
       cart = await Cart.create({
-        ...buildCartData(checkout, shop, correlationId, finalShopDomain),
+        ...(await buildCartData(
+          checkout,
+          shop,
+          correlationId,
+          finalShopDomain
+        )),
         status: "inCheckout",
       });
       console.log(`Created new cart: ${cart._id}`);
@@ -203,7 +213,12 @@ async function handleCheckoutUpdateWebhook(
       const updatedCart = await Cart.findOneAndUpdate(
         { shopifyCheckoutId: checkout.id.toString() },
         {
-          ...buildCartData(checkout, shop, correlationId, finalShopDomain),
+          ...(await buildCartData(
+            checkout,
+            shop,
+            correlationId,
+            finalShopDomain
+          )),
           lastActivityAt: new Date(), // Reset the timer
           status: "inCheckout", // Ensure it's back to inCheckout if it was marked as abandoned
         },
@@ -213,7 +228,12 @@ async function handleCheckoutUpdateWebhook(
     } else {
       // Create new cart if it doesn't exist (shouldn't happen normally)
       const newCart = await Cart.create({
-        ...buildCartData(checkout, shop, correlationId, finalShopDomain),
+        ...(await buildCartData(
+          checkout,
+          shop,
+          correlationId,
+          finalShopDomain
+        )),
         status: "inCheckout",
       });
       console.log(`Created new cart from update: ${newCart._id}`);
@@ -336,12 +356,31 @@ function extractShopDomainFromUrl(abandonedCheckoutUrl) {
 }
 
 // Helper function to build cart data from Shopify checkout
-function buildCartData(checkout, shop, correlationId, shopDomain = null) {
+async function buildCartData(checkout, shop, correlationId, shopDomain = null) {
   // Use provided shop domain or extract from abandoned checkout URL as fallback
   const urlShopDomain = extractShopDomainFromUrl(
     checkout.abandoned_checkout_url
   );
   const finalShopDomain = shopDomain || urlShopDomain || shop.shop;
+
+  // Fetch customer information if customerId exists
+  let customerInfo = null;
+  if (checkout.customer?.id) {
+    try {
+      customerInfo = await getShopifyCustomer(
+        shop.shop,
+        shop.accessToken,
+        checkout.customer.id.toString()
+      );
+      console.log(`Fetched customer info for cart: ${checkout.id}`);
+    } catch (error) {
+      console.error(
+        `Failed to fetch customer info for cart ${checkout.id}:`,
+        error.message
+      );
+      // Continue without customer info - don't fail the whole operation
+    }
+  }
 
   return {
     userId: shop.userId,
@@ -358,6 +397,7 @@ function buildCartData(checkout, shop, correlationId, shopDomain = null) {
     customerFirstName: checkout.customer?.first_name,
     customerLastName: checkout.customer?.last_name,
     customerId: checkout.customer?.id?.toString(),
+    customer: customerInfo, // Full customer data from Shopify API
 
     // Cart details
     totalPrice: checkout.total_price,
