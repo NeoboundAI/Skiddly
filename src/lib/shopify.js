@@ -193,42 +193,6 @@ export async function getShopifyAbandonedCarts(shop, accessToken, limit = 50) {
   return data.checkouts || [];
 }
 
-// Helper function to fetch customer information from Shopify
-export async function getShopifyCustomer(shop, accessToken, customerId) {
-  const url = `https://${shop}/admin/api/${
-    process.env.SHOPIFY_VERSION || "2025-07"
-  }/customers/${customerId}.json`;
-
-  console.log(`Fetching customer info from: ${url}`);
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
-    },
-  });
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      console.log(`Customer not found: ${customerId}`);
-      return null;
-    }
-
-    const errorText = await response.text();
-    console.error(
-      `Shopify API error: ${response.status} ${response.statusText}`,
-      errorText
-    );
-    throw new Error(`Failed to fetch customer info: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  console.log(`Successfully fetched customer info for ID: ${customerId}`);
-
-  return data.customer;
-}
-
 // Helper function to validate shop domain format
 export function validateShopDomain(shop) {
   const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;

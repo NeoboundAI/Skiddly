@@ -61,12 +61,6 @@ const CartSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Full customer information from Shopify API
-    customer: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null,
-    },
-
     // Cart details
     totalPrice: {
       type: String,
