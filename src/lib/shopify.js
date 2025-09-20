@@ -16,7 +16,6 @@ export function generateShopifyAuthUrl(shop) {
     scope: SHOPIFY_SCOPES,
     redirect_uri: SHOPIFY_REDIRECT_URI,
     state: state,
-    "grant_options[]": "per-user",
   });
 
   return {
