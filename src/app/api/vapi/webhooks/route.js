@@ -360,22 +360,37 @@ async function processCallAnalysis(
 
   // Handle different event types
   if (eventType === "status-update") {
-    // Basic status update - only update if we don't already have a final status
-    // Don't override final statuses from end-of-call-report
-    console.log(
-      `📞 Status update for call ${callId}: ${callData.call?.status}, existing outcome: ${callRecord.callOutcome}`
-    );
-
-    if (callData.call?.status && !callRecord.callOutcome) {
-      callUpdateData.callStatus = callData.call.status;
-      if (callData.call.status === "in-progress") {
-        callUpdateData.picked = true;
-      }
-      console.log(`✅ Updated call status to: ${callData.call.status}`);
-    } else {
+    // Check if this status-update contains final call information (endedReason)
+    if (callData.endedReason) {
+      // This is actually a final call status update, treat it like end-of-call-report
       console.log(
-        `⏭️ Skipped status update - call already has outcome: ${callRecord.callOutcome}`
+        `📞 Status-update with final call info for call ${callId}: endedReason=${callData.endedReason}, status=${callData.status}`
       );
+      return await processEndOfCallReport(
+        callData,
+        callRecord,
+        callUpdateData,
+        abandonedCart,
+        agent
+      );
+    } else {
+      // Basic status update - only update if we don't already have a final status
+      // Don't override final statuses from end-of-call-report
+      console.log(
+        `📞 Basic status update for call ${callId}: ${callData.call?.status}, existing outcome: ${callRecord.callOutcome}`
+      );
+
+      if (callData.call?.status && !callRecord.callOutcome) {
+        callUpdateData.callStatus = callData.call.status;
+        if (callData.call.status === "in-progress") {
+          callUpdateData.picked = true;
+        }
+        console.log(`✅ Updated call status to: ${callData.call.status}`);
+      } else {
+        console.log(
+          `⏭️ Skipped status update - call already has outcome: ${callRecord.callOutcome}`
+        );
+      }
     }
   } else if (eventType === "end-of-call-report") {
     // End of call - perform full analysis
@@ -419,6 +434,13 @@ async function processEndOfCallReport(
   // Store basic call data
   callUpdateData.providerEndReason = callData.endedReason;
   callUpdateData.endedReason = callData.endedReason;
+
+  // Handle status from different possible locations
+  const finalStatus = callData.status || callData.call?.status;
+  if (finalStatus) {
+    console.log(`📞 Final call status: ${finalStatus}`);
+    callUpdateData.callStatus = finalStatus;
+  }
 
   if (callData.cost !== undefined) callUpdateData.cost = callData.cost;
   if (callData.duration !== undefined)
@@ -534,19 +556,15 @@ async function processEndOfCallReport(
 
   // Ensure we always set the correct final call status based on the ended reason
   // This prevents status-update events from overriding the final status
-  if (!callUpdateData.callStatus) {
-    // Fallback: set status based on ended reason
-    const reasonCategory = categorizeEndedReason(callData.endedReason);
-    if (
-      reasonCategory === "customer_answered" ||
-      reasonCategory === "assistant_ended"
-    ) {
+  if (!callUpdateData.callStatus || callUpdateData.callStatus === "ended") {
+    // Set status based on ended reason and whether customer was reached
+    if (callUpdateData.picked) {
       callUpdateData.callStatus = CALL_STATUS.PICKED;
     } else {
       callUpdateData.callStatus = CALL_STATUS.NOT_PICKED;
     }
     console.log(
-      `🔄 Set fallback call status: ${callUpdateData.callStatus} for reason: ${callData.endedReason}`
+      `🔄 Set final call status: ${callUpdateData.callStatus} for reason: ${callData.endedReason}, picked: ${callUpdateData.picked}`
     );
   }
 
