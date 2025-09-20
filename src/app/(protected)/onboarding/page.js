@@ -153,7 +153,7 @@ const OnboardingPage = () => {
                 transition={{ delay: 0.2 }}
               >
                 <motion.p
-                  className="text-base text-[#64748B] uppercase tracking-wider font-medium mb-2"
+                  className="text-base text-[#64748B] uppercase tracking-wider font-medium mb-0"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
@@ -161,7 +161,7 @@ const OnboardingPage = () => {
                   WELCOME TO
                 </motion.p>
 
-                <img src="/skiddly.svg" className="w-60 h-30" />
+                <img src="/skiddly.svg" className="w-60 h-30 -mt-2" />
               </motion.div>
             )}
 
