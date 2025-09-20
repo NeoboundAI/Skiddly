@@ -170,6 +170,14 @@ export async function POST(request) {
 
     // Log webhook processing order for debugging
     console.log(`📋 Webhook processing: ${eventType} for call ${callId}`);
+    console.log(`📋 Webhook data structure:`, {
+      hasMessage: !!webhookData.message,
+      hasCall: !!webhookData.call,
+      messageType: webhookData.message?.type,
+      messageStatus: webhookData.message?.status,
+      callStatus: webhookData.call?.status,
+      hasEndedReason: !!webhookData.message?.endedReason,
+    });
     // console.log("🔍 Extracted webhook info:", {
     //   callId,
     //   callStatus,
@@ -376,16 +384,23 @@ async function processCallAnalysis(
     } else {
       // Basic status update - only update if we don't already have a final status
       // Don't override final statuses from end-of-call-report
+      // Check status from both possible locations
+      const statusUpdate = callData.status || callData.call?.status;
+
       console.log(
-        `📞 Basic status update for call ${callId}: ${callData.call?.status}, existing outcome: ${callRecord.callOutcome}`
+        `📞 Basic status update for call ${callId}: ${statusUpdate}, existing outcome: ${callRecord.callOutcome}`
       );
 
-      if (callData.call?.status && !callRecord.callOutcome) {
-        callUpdateData.callStatus = callData.call.status;
-        if (callData.call.status === "in-progress") {
+      if (statusUpdate && !callRecord.callOutcome) {
+        callUpdateData.callStatus = statusUpdate;
+        if (statusUpdate === "in-progress") {
           callUpdateData.picked = true;
+          console.log(`📞 Customer picked up the call! Setting picked=true`);
+        } else if (statusUpdate === "ringing") {
+          callUpdateData.picked = false;
+          console.log(`📞 Call is ringing, customer not yet picked up`);
         }
-        console.log(`✅ Updated call status to: ${callData.call.status}`);
+        console.log(`✅ Updated call status to: ${statusUpdate}`);
       } else {
         console.log(
           `⏭️ Skipped status update - call already has outcome: ${callRecord.callOutcome}`
